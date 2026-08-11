@@ -414,6 +414,513 @@ func (x *SessionStatus) GetExpiresAtUnixMs() int64 {
 	return 0
 }
 
+// A 3-D vector. Y is up. Positions are world-space meters.
+type Vec3 struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	X             float32                `protobuf:"fixed32,1,opt,name=x,proto3" json:"x,omitempty"`
+	Y             float32                `protobuf:"fixed32,2,opt,name=y,proto3" json:"y,omitempty"`
+	Z             float32                `protobuf:"fixed32,3,opt,name=z,proto3" json:"z,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Vec3) Reset() {
+	*x = Vec3{}
+	mi := &file_aetheria_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Vec3) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Vec3) ProtoMessage() {}
+
+func (x *Vec3) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Vec3.ProtoReflect.Descriptor instead.
+func (*Vec3) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *Vec3) GetX() float32 {
+	if x != nil {
+		return x.X
+	}
+	return 0
+}
+
+func (x *Vec3) GetY() float32 {
+	if x != nil {
+		return x.Y
+	}
+	return 0
+}
+
+func (x *Vec3) GetZ() float32 {
+	if x != nil {
+		return x.Z
+	}
+	return 0
+}
+
+// Client → server: enter the world with an existing character (M2).
+type EnterWorld struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CharacterId   int64                  `protobuf:"varint,1,opt,name=character_id,json=characterId,proto3" json:"character_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnterWorld) Reset() {
+	*x = EnterWorld{}
+	mi := &file_aetheria_proto_msgTypes[6]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnterWorld) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnterWorld) ProtoMessage() {}
+
+func (x *EnterWorld) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[6]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnterWorld.ProtoReflect.Descriptor instead.
+func (*EnterWorld) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{6}
+}
+
+func (x *EnterWorld) GetCharacterId() int64 {
+	if x != nil {
+		return x.CharacterId
+	}
+	return 0
+}
+
+// Server → client: result of EnterWorld. `ok` true spawns the player into the
+// AOI stream; `error` explains a rejection.
+type EnterWorldAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	EntityId      uint64                 `protobuf:"varint,3,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"` // this player's world entity id
+	ZoneId        string                 `protobuf:"bytes,4,opt,name=zone_id,json=zoneId,proto3" json:"zone_id,omitempty"`
+	Position      *Vec3                  `protobuf:"bytes,5,opt,name=position,proto3" json:"position,omitempty"`
+	MaxSpeed      float32                `protobuf:"fixed32,6,opt,name=max_speed,json=maxSpeed,proto3" json:"max_speed,omitempty"` // server-clamped move speed for this character
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EnterWorldAck) Reset() {
+	*x = EnterWorldAck{}
+	mi := &file_aetheria_proto_msgTypes[7]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EnterWorldAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EnterWorldAck) ProtoMessage() {}
+
+func (x *EnterWorldAck) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[7]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EnterWorldAck.ProtoReflect.Descriptor instead.
+func (*EnterWorldAck) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{7}
+}
+
+func (x *EnterWorldAck) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *EnterWorldAck) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *EnterWorldAck) GetEntityId() uint64 {
+	if x != nil {
+		return x.EntityId
+	}
+	return 0
+}
+
+func (x *EnterWorldAck) GetZoneId() string {
+	if x != nil {
+		return x.ZoneId
+	}
+	return ""
+}
+
+func (x *EnterWorldAck) GetPosition() *Vec3 {
+	if x != nil {
+		return x.Position
+	}
+	return nil
+}
+
+func (x *EnterWorldAck) GetMaxSpeed() float32 {
+	if x != nil {
+		return x.MaxSpeed
+	}
+	return 0
+}
+
+// Client → server: movement intent. Either target (click-to-move) or a
+// normalized direction (WASD) is set. Server validates, clamps speed, and
+// integrates the position on the 20 Hz tick. Direction intents keep moving
+// until a zero direction arrives.
+type MoveIntent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Target        *Vec3                  `protobuf:"bytes,1,opt,name=target,proto3" json:"target,omitempty"`           // click-to-move destination (optional)
+	Direction     *Vec3                  `protobuf:"bytes,2,opt,name=direction,proto3" json:"direction,omitempty"`     // normalized movement direction (optional)
+	Speed         float32                `protobuf:"fixed32,3,opt,name=speed,proto3" json:"speed,omitempty"`           // requested speed in m/s (clamped server-side)
+	RotY          float32                `protobuf:"fixed32,4,opt,name=rot_y,json=rotY,proto3" json:"rot_y,omitempty"` // facing
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MoveIntent) Reset() {
+	*x = MoveIntent{}
+	mi := &file_aetheria_proto_msgTypes[8]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MoveIntent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MoveIntent) ProtoMessage() {}
+
+func (x *MoveIntent) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[8]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MoveIntent.ProtoReflect.Descriptor instead.
+func (*MoveIntent) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{8}
+}
+
+func (x *MoveIntent) GetTarget() *Vec3 {
+	if x != nil {
+		return x.Target
+	}
+	return nil
+}
+
+func (x *MoveIntent) GetDirection() *Vec3 {
+	if x != nil {
+		return x.Direction
+	}
+	return nil
+}
+
+func (x *MoveIntent) GetSpeed() float32 {
+	if x != nil {
+		return x.Speed
+	}
+	return 0
+}
+
+func (x *MoveIntent) GetRotY() float32 {
+	if x != nil {
+		return x.RotY
+	}
+	return 0
+}
+
+// Server → client: a compact entity state included in snapshots.
+type EntityState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EntityId      uint64                 `protobuf:"varint,1,opt,name=entity_id,json=entityId,proto3" json:"entity_id,omitempty"`
+	EntityType    string                 `protobuf:"bytes,2,opt,name=entity_type,json=entityType,proto3" json:"entity_type,omitempty"` // "player" | "npc" (mobs land in M3)
+	Name          string                 `protobuf:"bytes,3,opt,name=name,proto3" json:"name,omitempty"`
+	ZoneId        string                 `protobuf:"bytes,4,opt,name=zone_id,json=zoneId,proto3" json:"zone_id,omitempty"`
+	Position      *Vec3                  `protobuf:"bytes,5,opt,name=position,proto3" json:"position,omitempty"`
+	RotY          float32                `protobuf:"fixed32,6,opt,name=rot_y,json=rotY,proto3" json:"rot_y,omitempty"`
+	Speed         float32                `protobuf:"fixed32,7,opt,name=speed,proto3" json:"speed,omitempty"`
+	Hp            int64                  `protobuf:"varint,8,opt,name=hp,proto3" json:"hp,omitempty"`
+	MaxHp         int64                  `protobuf:"varint,9,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
+	Level         int32                  `protobuf:"varint,10,opt,name=level,proto3" json:"level,omitempty"`
+	IsMoving      bool                   `protobuf:"varint,11,opt,name=is_moving,json=isMoving,proto3" json:"is_moving,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EntityState) Reset() {
+	*x = EntityState{}
+	mi := &file_aetheria_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EntityState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EntityState) ProtoMessage() {}
+
+func (x *EntityState) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EntityState.ProtoReflect.Descriptor instead.
+func (*EntityState) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *EntityState) GetEntityId() uint64 {
+	if x != nil {
+		return x.EntityId
+	}
+	return 0
+}
+
+func (x *EntityState) GetEntityType() string {
+	if x != nil {
+		return x.EntityType
+	}
+	return ""
+}
+
+func (x *EntityState) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *EntityState) GetZoneId() string {
+	if x != nil {
+		return x.ZoneId
+	}
+	return ""
+}
+
+func (x *EntityState) GetPosition() *Vec3 {
+	if x != nil {
+		return x.Position
+	}
+	return nil
+}
+
+func (x *EntityState) GetRotY() float32 {
+	if x != nil {
+		return x.RotY
+	}
+	return 0
+}
+
+func (x *EntityState) GetSpeed() float32 {
+	if x != nil {
+		return x.Speed
+	}
+	return 0
+}
+
+func (x *EntityState) GetHp() int64 {
+	if x != nil {
+		return x.Hp
+	}
+	return 0
+}
+
+func (x *EntityState) GetMaxHp() int64 {
+	if x != nil {
+		return x.MaxHp
+	}
+	return 0
+}
+
+func (x *EntityState) GetLevel() int32 {
+	if x != nil {
+		return x.Level
+	}
+	return 0
+}
+
+func (x *EntityState) GetIsMoving() bool {
+	if x != nil {
+		return x.IsMoving
+	}
+	return false
+}
+
+// Server → client: one 20 Hz AOI snapshot. `entities` are new-or-changed
+// nearby entities; `despawn_ids` are entities that left the viewer's AOI and
+// should be removed client-side. `self` echoes the authoritative state of the
+// receiving player so the client can reconcile its prediction.
+type WorldSnapshot struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Tick          uint64                 `protobuf:"varint,1,opt,name=tick,proto3" json:"tick,omitempty"`
+	SelfId        uint64                 `protobuf:"varint,2,opt,name=self_id,json=selfId,proto3" json:"self_id,omitempty"`
+	Self          []*EntityState         `protobuf:"bytes,3,rep,name=self,proto3" json:"self,omitempty"`                                       // always exactly 0..1 entries
+	Entities      []*EntityState         `protobuf:"bytes,4,rep,name=entities,proto3" json:"entities,omitempty"`                               // other entities in AOI
+	DespawnIds    []uint64               `protobuf:"varint,5,rep,packed,name=despawn_ids,json=despawnIds,proto3" json:"despawn_ids,omitempty"` // entities leaving AOI
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WorldSnapshot) Reset() {
+	*x = WorldSnapshot{}
+	mi := &file_aetheria_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WorldSnapshot) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WorldSnapshot) ProtoMessage() {}
+
+func (x *WorldSnapshot) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WorldSnapshot.ProtoReflect.Descriptor instead.
+func (*WorldSnapshot) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *WorldSnapshot) GetTick() uint64 {
+	if x != nil {
+		return x.Tick
+	}
+	return 0
+}
+
+func (x *WorldSnapshot) GetSelfId() uint64 {
+	if x != nil {
+		return x.SelfId
+	}
+	return 0
+}
+
+func (x *WorldSnapshot) GetSelf() []*EntityState {
+	if x != nil {
+		return x.Self
+	}
+	return nil
+}
+
+func (x *WorldSnapshot) GetEntities() []*EntityState {
+	if x != nil {
+		return x.Entities
+	}
+	return nil
+}
+
+func (x *WorldSnapshot) GetDespawnIds() []uint64 {
+	if x != nil {
+		return x.DespawnIds
+	}
+	return nil
+}
+
+// Client → server: leave the world (client sends before closing, but the
+// server also handles abrupt disconnects on the WS read loop).
+type LeaveWorld struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LeaveWorld) Reset() {
+	*x = LeaveWorld{}
+	mi := &file_aetheria_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LeaveWorld) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LeaveWorld) ProtoMessage() {}
+
+func (x *LeaveWorld) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LeaveWorld.ProtoReflect.Descriptor instead.
+func (*LeaveWorld) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{11}
+}
+
 var File_aetheria_proto protoreflect.FileDescriptor
 
 const file_aetheria_proto_rawDesc = "" +
@@ -446,7 +953,50 @@ const file_aetheria_proto_rawDesc = "" +
 	"\x11STATE_UNSPECIFIED\x10\x00\x12\x0f\n" +
 	"\vSTATE_VALID\x10\x01\x12\x11\n" +
 	"\rSTATE_EXPIRED\x10\x02\x12\x10\n" +
-	"\fSTATE_BANNED\x10\x03B+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
+	"\fSTATE_BANNED\x10\x03\"0\n" +
+	"\x04Vec3\x12\f\n" +
+	"\x01x\x18\x01 \x01(\x02R\x01x\x12\f\n" +
+	"\x01y\x18\x02 \x01(\x02R\x01y\x12\f\n" +
+	"\x01z\x18\x03 \x01(\x02R\x01z\"/\n" +
+	"\n" +
+	"EnterWorld\x12!\n" +
+	"\fcharacter_id\x18\x01 \x01(\x03R\vcharacterId\"\xb4\x01\n" +
+	"\rEnterWorldAck\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x1b\n" +
+	"\tentity_id\x18\x03 \x01(\x04R\bentityId\x12\x17\n" +
+	"\azone_id\x18\x04 \x01(\tR\x06zoneId\x12*\n" +
+	"\bposition\x18\x05 \x01(\v2\x0e.aetheria.Vec3R\bposition\x12\x1b\n" +
+	"\tmax_speed\x18\x06 \x01(\x02R\bmaxSpeed\"\x8d\x01\n" +
+	"\n" +
+	"MoveIntent\x12&\n" +
+	"\x06target\x18\x01 \x01(\v2\x0e.aetheria.Vec3R\x06target\x12,\n" +
+	"\tdirection\x18\x02 \x01(\v2\x0e.aetheria.Vec3R\tdirection\x12\x14\n" +
+	"\x05speed\x18\x03 \x01(\x02R\x05speed\x12\x13\n" +
+	"\x05rot_y\x18\x04 \x01(\x02R\x04rotY\"\xa9\x02\n" +
+	"\vEntityState\x12\x1b\n" +
+	"\tentity_id\x18\x01 \x01(\x04R\bentityId\x12\x1f\n" +
+	"\ventity_type\x18\x02 \x01(\tR\n" +
+	"entityType\x12\x12\n" +
+	"\x04name\x18\x03 \x01(\tR\x04name\x12\x17\n" +
+	"\azone_id\x18\x04 \x01(\tR\x06zoneId\x12*\n" +
+	"\bposition\x18\x05 \x01(\v2\x0e.aetheria.Vec3R\bposition\x12\x13\n" +
+	"\x05rot_y\x18\x06 \x01(\x02R\x04rotY\x12\x14\n" +
+	"\x05speed\x18\a \x01(\x02R\x05speed\x12\x0e\n" +
+	"\x02hp\x18\b \x01(\x03R\x02hp\x12\x15\n" +
+	"\x06max_hp\x18\t \x01(\x03R\x05maxHp\x12\x14\n" +
+	"\x05level\x18\n" +
+	" \x01(\x05R\x05level\x12\x1b\n" +
+	"\tis_moving\x18\v \x01(\bR\bisMoving\"\xbb\x01\n" +
+	"\rWorldSnapshot\x12\x12\n" +
+	"\x04tick\x18\x01 \x01(\x04R\x04tick\x12\x17\n" +
+	"\aself_id\x18\x02 \x01(\x04R\x06selfId\x12)\n" +
+	"\x04self\x18\x03 \x03(\v2\x15.aetheria.EntityStateR\x04self\x121\n" +
+	"\bentities\x18\x04 \x03(\v2\x15.aetheria.EntityStateR\bentities\x12\x1f\n" +
+	"\vdespawn_ids\x18\x05 \x03(\x04R\n" +
+	"despawnIds\"\f\n" +
+	"\n" +
+	"LeaveWorldB+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
 
 var (
 	file_aetheria_proto_rawDescOnce sync.Once
@@ -461,7 +1011,7 @@ func file_aetheria_proto_rawDescGZIP() []byte {
 }
 
 var file_aetheria_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
+var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_aetheria_proto_goTypes = []any{
 	(Envelope_Kind)(0),       // 0: aetheria.Envelope.Kind
 	(SessionStatus_State)(0), // 1: aetheria.SessionStatus.State
@@ -470,15 +1020,28 @@ var file_aetheria_proto_goTypes = []any{
 	(*Pong)(nil),             // 4: aetheria.Pong
 	(*ServerHello)(nil),      // 5: aetheria.ServerHello
 	(*SessionStatus)(nil),    // 6: aetheria.SessionStatus
+	(*Vec3)(nil),             // 7: aetheria.Vec3
+	(*EnterWorld)(nil),       // 8: aetheria.EnterWorld
+	(*EnterWorldAck)(nil),    // 9: aetheria.EnterWorldAck
+	(*MoveIntent)(nil),       // 10: aetheria.MoveIntent
+	(*EntityState)(nil),      // 11: aetheria.EntityState
+	(*WorldSnapshot)(nil),    // 12: aetheria.WorldSnapshot
+	(*LeaveWorld)(nil),       // 13: aetheria.LeaveWorld
 }
 var file_aetheria_proto_depIdxs = []int32{
-	0, // 0: aetheria.Envelope.kind:type_name -> aetheria.Envelope.Kind
-	1, // 1: aetheria.SessionStatus.state:type_name -> aetheria.SessionStatus.State
-	2, // [2:2] is the sub-list for method output_type
-	2, // [2:2] is the sub-list for method input_type
-	2, // [2:2] is the sub-list for extension type_name
-	2, // [2:2] is the sub-list for extension extendee
-	0, // [0:2] is the sub-list for field type_name
+	0,  // 0: aetheria.Envelope.kind:type_name -> aetheria.Envelope.Kind
+	1,  // 1: aetheria.SessionStatus.state:type_name -> aetheria.SessionStatus.State
+	7,  // 2: aetheria.EnterWorldAck.position:type_name -> aetheria.Vec3
+	7,  // 3: aetheria.MoveIntent.target:type_name -> aetheria.Vec3
+	7,  // 4: aetheria.MoveIntent.direction:type_name -> aetheria.Vec3
+	7,  // 5: aetheria.EntityState.position:type_name -> aetheria.Vec3
+	11, // 6: aetheria.WorldSnapshot.self:type_name -> aetheria.EntityState
+	11, // 7: aetheria.WorldSnapshot.entities:type_name -> aetheria.EntityState
+	8,  // [8:8] is the sub-list for method output_type
+	8,  // [8:8] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_aetheria_proto_init() }
@@ -492,7 +1055,7 @@ func file_aetheria_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aetheria_proto_rawDesc), len(file_aetheria_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   5,
+			NumMessages:   12,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

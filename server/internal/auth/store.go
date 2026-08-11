@@ -11,6 +11,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/itsbaldeep/aetheria/server/internal/world"
 )
 
 var ErrEmailTaken = errors.New("email already registered")
@@ -96,4 +98,54 @@ func (s *Store) BannedUntil(ctx context.Context, accountID int64) (*time.Time, e
 		return nil, fmt.Errorf("auth: fetch ban: %w", err)
 	}
 	return banned, nil
+}
+
+// CharacterSpawn is the data the gameserver needs to place a character in the
+// world (M2). Zone/position come from the character's last saved state.
+type CharacterSpawn struct {
+	ID     int64
+	Name   string
+	Class  string
+	ZoneID string
+	Pos    worldVec
+	Level  int32
+	HP     int64
+	MaxHP  int64
+}
+
+// worldVec aliases the world package's Vec3 so the auth package stays small.
+type worldVec = world.Vec3
+
+// LoadCharacterSpawn fetches a character's spawn state, verifying ownership
+// (account must own the character). Returns nil, nil when not found.
+func (s *Store) LoadCharacterSpawn(ctx context.Context, accountID, charID int64) (*CharacterSpawn, error) {
+	var c CharacterSpawn
+	var x, y, z float64
+	err := s.pool.QueryRow(ctx,
+		`SELECT id, name, class, zone_id, pos_x, pos_y, pos_z, level, hp,
+		        GREATEST(hp, 1) AS hp, stats->>'max_hp' AS max_hp
+		 FROM characters
+		 WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL`,
+		charID, accountID).Scan(&c.ID, &c.Name, &c.Class, &c.ZoneID, &x, &y, &z, &c.Level, &c.HP, &c.MaxHP)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("auth: load spawn: %w", err)
+	}
+	c.Pos = worldVec{X: x, Y: y, Z: z}
+	return &c, nil
+}
+
+// SaveCharacterPosition persists a character's current world position.
+// Write-behind flush from the gameserver (brief §3: every 30 s + on logout).
+func (s *Store) SaveCharacterPosition(ctx context.Context, charID int64, pos worldVec) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE characters SET pos_x = $1, pos_y = $2, pos_z = $3, updated_at = now()
+		 WHERE id = $4`,
+		pos.X, pos.Y, pos.Z, charID)
+	if err != nil {
+		return fmt.Errorf("auth: save position: %w", err)
+	}
+	return nil
 }

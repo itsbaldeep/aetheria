@@ -61,3 +61,10 @@ func (s *Service) Healthz() http.HandlerFunc {
 		})
 	}
 }
+
+// JSON writes a JSON response with the given status code.
+func JSON(w http.ResponseWriter, status int, v any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	json.NewEncoder(w).Encode(v)
+}

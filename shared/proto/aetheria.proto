@@ -57,3 +57,74 @@ message SessionStatus {
   State state = 1;
   int64 expires_at_unix_ms = 2;
 }
+
+// ============================= M2: world presence =============================
+// After ServerHello the client sends EnterWorld with a character id; the server
+// replies EnterWorldAck with the entity id + spawn position, then streams
+// 20 Hz WorldSnapshot frames. The client sends MoveIntent as movement intents;
+// the server clamps speed and is authoritative.
+
+// A 3-D vector. Y is up. Positions are world-space meters.
+message Vec3 {
+  float x = 1;
+  float y = 2;
+  float z = 3;
+}
+
+// Client → server: enter the world with an existing character (M2).
+message EnterWorld {
+  int64 character_id = 1;
+}
+
+// Server → client: result of EnterWorld. `ok` true spawns the player into the
+// AOI stream; `error` explains a rejection.
+message EnterWorldAck {
+  bool ok = 1;
+  string error = 2;
+  uint64 entity_id = 3;      // this player's world entity id
+  string zone_id = 4;
+  Vec3 position = 5;
+  float max_speed = 6;       // server-clamped move speed for this character
+}
+
+// Client → server: movement intent. Either target (click-to-move) or a
+// normalized direction (WASD) is set. Server validates, clamps speed, and
+// integrates the position on the 20 Hz tick. Direction intents keep moving
+// until a zero direction arrives.
+message MoveIntent {
+  Vec3 target = 1;        // click-to-move destination (optional)
+  Vec3 direction = 2;     // normalized movement direction (optional)
+  float speed = 3;        // requested speed in m/s (clamped server-side)
+  float rot_y = 4;        // facing
+}
+
+// Server → client: a compact entity state included in snapshots.
+message EntityState {
+  uint64 entity_id = 1;
+  string entity_type = 2;  // "player" | "npc" (mobs land in M3)
+  string name = 3;
+  string zone_id = 4;
+  Vec3 position = 5;
+  float rot_y = 6;
+  float speed = 7;
+  int64 hp = 8;
+  int64 max_hp = 9;
+  int32 level = 10;
+  bool is_moving = 11;
+}
+
+// Server → client: one 20 Hz AOI snapshot. `entities` are new-or-changed
+// nearby entities; `despawn_ids` are entities that left the viewer's AOI and
+// should be removed client-side. `self` echoes the authoritative state of the
+// receiving player so the client can reconcile its prediction.
+message WorldSnapshot {
+  uint64 tick = 1;
+  uint64 self_id = 2;
+  repeated EntityState self = 3;        // always exactly 0..1 entries
+  repeated EntityState entities = 4;    // other entities in AOI
+  repeated uint64 despawn_ids = 5;      // entities leaving AOI
+}
+
+// Client → server: leave the world (client sends before closing, but the
+// server also handles abrupt disconnects on the WS read loop).
+message LeaveWorld {};

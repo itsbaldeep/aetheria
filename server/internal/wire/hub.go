@@ -1,6 +1,6 @@
 // Package wire implements the gameserver's WebSocket protocol layer:
 // accepts connections, frames Envelope messages, dispatches by payload type,
-// and handles the M0 ping/pong + ServerHello handshake.
+// and bridges authenticated connections into the world simulation (M2).
 package wire
 
 import (
@@ -16,6 +16,7 @@ import (
 	aet "github.com/itsbaldeep/aetheria/server/gen"
 	"github.com/itsbaldeep/aetheria/server/internal/auth"
 	"github.com/itsbaldeep/aetheria/server/internal/platform"
+	"github.com/itsbaldeep/aetheria/server/internal/world"
 )
 
 // SessionValidator checks a handshake token and returns the account id.
@@ -24,14 +25,56 @@ type SessionValidator interface {
 	Validate(ctx context.Context, token string) (int64, error)
 }
 
-// Hub owns all live connections and routes envelopes to handlers.
-type Hub struct {
-	s *platform.Service
-	v SessionValidator
+// CharacterLoader loads a character's spawn state for EnterWorld.
+type CharacterLoader interface {
+	// LoadCharacter returns the character's spawn state if it belongs to the
+	// account. nil, nil means "not found".
+	LoadCharacter(ctx context.Context, accountID, charID int64) (*CharacterSpawn, error)
 }
 
-func NewHub(s *platform.Service, v SessionValidator) *Hub {
-	return &Hub{s: s, v: v}
+// CharacterSpawn is the subset of character data the world needs to spawn.
+type CharacterSpawn struct {
+	ID     int64
+	Name   string
+	Class  string
+	ZoneID string
+	Pos    world.Vec3
+	Level  int32
+	HP     int64
+	MaxHP  int64
+}
+
+// connState is per-connection mutable state, owned by the HandleWS goroutine
+// (the writer goroutine only reads outbox, which is fixed after creation).
+type connState struct {
+	conn      *websocket.Conn
+	accountID int64
+	outbox    chan []byte   // fixed for the connection lifetime
+	session   *world.Player // nil until EnterWorld succeeds
+}
+
+// Hub owns all live connections and routes envelopes to handlers.
+type Hub struct {
+	s   *platform.Service
+	v   SessionValidator
+	cl  CharacterLoader
+	sim *world.Sim
+
+	maxSpeeds map[string]float64
+}
+
+// NewHub builds the gameserver hub. sim may be nil (M0/M1 tests).
+func NewHub(s *platform.Service, v SessionValidator, cl CharacterLoader, sim *world.Sim) *Hub {
+	return &Hub{
+		s:   s,
+		v:   v,
+		cl:  cl,
+		sim: sim,
+		maxSpeeds: map[string]float64{
+			auth.ClassBladeDancer: 8.0,
+			auth.ClassSpellweaver: 7.0,
+		},
+	}
 }
 
 // Run is a placeholder lifecycle loop (future: connection registry, sessions).
@@ -74,22 +117,81 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	st := &connState{conn: conn, accountID: accountID}
+	if h.sim != nil {
+		st.outbox = h.sim.NewPlayerOutbox()
+	} else {
+		st.outbox = make(chan []byte, 64)
+	}
+	defer func() {
+		if st.session != nil {
+			h.leaveWorld(st.session)
+		}
+	}()
+
+	// Writer goroutine: drains the connection's outbox (fixed channel) and
+	// writes frames to the socket. Frames are pre-marshalled Envelopes.
+	writeErr := make(chan error, 1)
+	stopWriter := make(chan struct{})
+	outbox := st.outbox
+	go func() {
+		for {
+			select {
+			case <-stopWriter:
+				return
+			case frame := <-outbox:
+				ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				err := conn.Write(ctx, websocket.MessageBinary, frame)
+				cancel()
+				if err != nil {
+					select {
+					case writeErr <- err:
+					default:
+					}
+					return
+				}
+			}
+		}
+	}()
+
+	// Read loop.
 	for {
 		env, err := h.receive(conn)
 		if err != nil {
-			h.s.Log("info", "client disconnected", "remote", remote)
+			break
+		}
+		done := h.dispatch(r.Context(), st, env)
+		if done {
+			close(stopWriter)
 			return
 		}
-		h.dispatch(conn, env)
+	}
+
+	close(stopWriter)
+	select {
+	case <-writeErr:
+	default:
 	}
 }
 
+// leaveWorld removes a player from the sim and saves the final position.
+func (h *Hub) leaveWorld(p *world.Player) {
+	if h.sim == nil {
+		return
+	}
+	if h.sim.SavePos != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = h.sim.SavePos(ctx, p.CharacterID, p.Pos)
+		cancel()
+	}
+	h.sim.Despawn(p.CharacterID)
+	h.s.Log("info", "player left world", "char_id", p.CharacterID)
+}
+
 // validateHandshake extracts the Bearer token from the WS handshake request
-// and validates it with the session guard. M1-5: no token / bad token /
-// banned account are rejected before any game message is sent.
+// and validates it with the session guard.
 func (h *Hub) validateHandshake(r *http.Request) (int64, error) {
 	if h.v == nil {
-		// No validator wired (M0 tests / local dev): accept unauthenticated.
 		return 0, nil
 	}
 	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
@@ -127,24 +229,120 @@ func (h *Hub) receive(conn *websocket.Conn) (*aet.Envelope, error) {
 	return env, nil
 }
 
-// dispatch routes an envelope by its payload_type. M0 handles Ping→Pong.
-// Later milestones add Move, CastSkill, Trade, etc. here.
-func (h *Hub) dispatch(conn *websocket.Conn, env *aet.Envelope) {
+// dispatch routes an envelope. Returns true when the connection should close
+// (explicit LeaveWorld or fatal error).
+func (h *Hub) dispatch(ctx context.Context, st *connState, env *aet.Envelope) bool {
 	switch env.PayloadType {
 	case "aetheria.Ping":
 		p := &aet.Ping{}
 		if err := proto.Unmarshal(env.Payload, p); err != nil {
 			h.s.Log("warn", "bad ping payload", "error", err)
-			return
+			return false
 		}
 		pong := &aet.Pong{
 			SentAtUnixMs:     p.SentAtUnixMs,
 			ServerTimeUnixMs: time.Now().UnixMilli(),
 		}
-		if err := h.send(conn, pong); err != nil {
+		if err := h.send(st.conn, pong); err != nil {
 			h.s.Log("warn", "pong send failed", "error", err)
 		}
+		return false
+	case "aetheria.EnterWorld":
+		return h.handleEnterWorld(ctx, st, env)
+	case "aetheria.MoveIntent":
+		if st.session == nil {
+			h.s.Log("warn", "move before enter world")
+			return false
+		}
+		m := &aet.MoveIntent{}
+		if err := proto.Unmarshal(env.Payload, m); err != nil {
+			h.s.Log("warn", "bad move payload", "error", err)
+			return false
+		}
+		h.handleMove(st.session, m)
+		return false
+	case "aetheria.LeaveWorld":
+		return true
 	default:
 		h.s.Log("warn", "unknown payload type", "type", env.PayloadType)
+	}
+	return false
+}
+
+// handleEnterWorld validates the character, spawns it in the sim, and replies
+// EnterWorldAck. On success st.session is set; its outbox feeds the writer.
+func (h *Hub) handleEnterWorld(ctx context.Context, st *connState, env *aet.Envelope) bool {
+	req := &aet.EnterWorld{}
+	if err := proto.Unmarshal(env.Payload, req); err != nil {
+		h.s.Log("warn", "bad enter payload", "error", err)
+		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "bad_request"})
+		return false
+	}
+	if h.sim == nil || h.cl == nil {
+		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "world_unavailable"})
+		return false
+	}
+
+	spawn, err := h.cl.LoadCharacter(ctx, st.accountID, req.CharacterId)
+	if err != nil {
+		h.s.Log("warn", "enter world load failed", "error", err)
+		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "load_failed"})
+		return false
+	}
+	if spawn == nil {
+		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "character_not_found"})
+		return false
+	}
+
+	maxSpeed := h.maxSpeeds[spawn.Class]
+	if maxSpeed == 0 {
+		maxSpeed = 8
+	}
+	p := &world.Player{
+		Entity: world.Entity{
+			Type:  world.TypePlayer,
+			Name:  spawn.Name,
+			Zone:  spawn.ZoneID,
+			Pos:   spawn.Pos,
+			HP:    spawn.HP,
+			MaxHP: spawn.MaxHP,
+			Level: spawn.Level,
+		},
+		AccountID:   st.accountID,
+		CharacterID: spawn.ID,
+		MaxSpeed:    maxSpeed,
+		Outbox:      st.outbox,
+	}
+	if err := h.sim.Spawn(p); err != nil {
+		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "already_in_world"})
+		return false
+	}
+	st.session = p
+	h.s.Log("info", "player entered world", "char_id", spawn.ID, "zone", spawn.ZoneID)
+	h.send(st.conn, &aet.EnterWorldAck{
+		Ok:       true,
+		EntityId: p.ID,
+		ZoneId:   spawn.ZoneID,
+		Position: &aet.Vec3{X: float32(p.Pos.X), Y: float32(p.Pos.Y), Z: float32(p.Pos.Z)},
+		MaxSpeed: float32(maxSpeed),
+	})
+	return false
+}
+
+// handleMove forwards a validated MoveIntent into the sim.
+func (h *Hub) handleMove(p *world.Player, m *aet.MoveIntent) {
+	wi := world.MoveIntent{
+		Speed: float64(m.Speed),
+		RotY:  float64(m.RotY),
+	}
+	if m.Target != nil {
+		t := world.Vec3{X: float64(m.Target.X), Y: float64(m.Target.Y), Z: float64(m.Target.Z)}
+		wi.Target = &t
+	}
+	if m.Direction != nil {
+		wi.Direction = world.Vec3{X: float64(m.Direction.X), Y: float64(m.Direction.Y), Z: float64(m.Direction.Z)}
+	}
+	if err := h.sim.SetMove(p.CharacterID, wi); err != nil {
+		h.s.Log("warn", "move rejected", "char_id", p.CharacterID, "error", err)
 	}
 }
