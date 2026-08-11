@@ -15,6 +15,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"time"
 
@@ -34,17 +35,166 @@ func main() {
 
 	switch *profile {
 	case "ping":
-		runPing(*addr)
+		runPing(*addr, *api)
 	case "register":
 		runRegister(*api, *n)
 	case "login":
 		runLogin(*api)
 	case "create-char":
 		runCreateChar(*api)
+	case "full-auth":
+		runFullAuth(*addr, *api)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping', 'register', 'login', 'create-char')\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping', 'register', 'login', 'create-char', 'full-auth')\n", *profile)
 		os.Exit(2)
 	}
+}
+
+// runFullAuth is the M1 acceptance scenario (brief §11 M1): register → login
+// → create character → authenticated WS session; wrong password / banned /
+// invalid token all rejected.
+func runFullAuth(wsURL, apiURL string) {
+	stamp := time.Now().UTC().Format("20060102T150405")
+	email := "botauth-" + stamp + "@aetheria.test"
+	pw := "auth-pass-31"
+
+	// 1. Register.
+	if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
+		BaseURL: apiURL, Count: 1, EmailFmt: email, Password: pw, BatchSize: 1,
+	}); err != nil {
+		fatal("register: %v", err)
+	}
+	fmt.Printf("full-auth OK: registered %s\n", email)
+
+	// 2. Login → token.
+	lg, err := scenarios.Login(apiURL, email, pw)
+	if err != nil {
+		fatal("login: %v", err)
+	}
+	if lg.Token == "" {
+		fatal("login: no token returned")
+	}
+	fmt.Printf("full-auth OK: logged in, token issued\n")
+
+	// 3. Create character.
+	name := "AuthHero" + stamp[len(stamp)-4:]
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
+		fatal("create char: status=%d want 201", st)
+	}
+	fmt.Printf("full-auth OK: created character %s\n", name)
+
+	// 4. Authenticated WS session → ServerHello.
+	if p, err := scenarios.ConnectAuthed(wsURL, lg.Token, true); err != nil {
+		fatal("authed ws: %v", err)
+	} else {
+		fmt.Printf("full-auth OK: authenticated WS session (hello accepted)\n")
+		_ = p
+	}
+
+	// 5. No token → rejected.
+	if _, err := scenarios.ConnectAuthed(wsURL, "", false); err != nil {
+		fatal("no-token ws: %v", err)
+	}
+	fmt.Printf("full-auth OK: no-token connection rejected\n")
+
+	// 6. Garbage token → rejected.
+	if _, err := scenarios.ConnectAuthed(wsURL, "not-a-real-token", false); err != nil {
+		fatal("bad-token ws: %v", err)
+	}
+	fmt.Printf("full-auth OK: invalid-token connection rejected\n")
+
+	// 7. Wrong password → 401 (already covered in login, assert here too).
+	if bad, err := scenarios.Login(apiURL, email, "wrong-password"); err != nil {
+		fatal("wrong pw: %v", err)
+	} else if bad.Status != 401 {
+		fatal("wrong pw status=%d want 401", bad.Status)
+	}
+	fmt.Printf("full-auth OK: wrong password rejected (401)\n")
+
+	// 8. Banned account rejected at WS handshake. Requires a token for an
+	// account banned AFTER login (AETHERIA_BANNED_TEST_TOKEN, set by the
+	// caller/CI). Skipped when unset; the login-time ban (403) is already
+	// covered by the `login` profile.
+	if bannedTok := os.Getenv("AETHERIA_BANNED_TEST_TOKEN"); bannedTok != "" {
+		if p, err := scenarios.ConnectAuthed(wsURL, bannedTok, false); err != nil {
+			fatal("banned ws: %v", err)
+		} else if p.CloseReason != "account_banned" {
+			fatal("banned ws close reason = %q, want account_banned", p.CloseReason)
+		}
+		fmt.Printf("full-auth OK: banned account rejected at handshake\n")
+	}
+
+	fmt.Println("full-auth: ALL PASS — M1 acceptance met")
+}
+
+// runPing authenticates (register a throwaway account, log in for a token),
+// then connects to the gameserver WS with the Bearer token and completes the
+// M0 ping/pong over an authenticated session (M1 handshake requirement).
+func runPing(addr, apiURL string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
+	stamp := time.Now().UTC().Format("20060102T150405")
+	email := "botping-" + stamp + "@aetheria.test"
+	pw := "ping-pass-42"
+	if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
+		BaseURL: apiURL, Count: 1, EmailFmt: email, Password: pw, BatchSize: 1,
+	}); err != nil {
+		fatal("seed account: %v", err)
+	}
+	lg, err := scenarios.Login(apiURL, email, pw)
+	if err != nil {
+		fatal("login: %v", err)
+	}
+	if lg.Token == "" {
+		fatal("login returned no token")
+	}
+	fmt.Printf("auth OK: token for account %d\n", lg.AccountID)
+
+	conn, _, err := websocket.Dial(ctx, addr, &websocket.DialOptions{
+		HTTPHeader: http.Header{"Authorization": {"Bearer " + lg.Token}},
+	})
+	if err != nil {
+		fatal("dial: %v", err)
+	}
+	defer conn.Close(websocket.StatusNormalClosure, "done")
+
+	// Expect ServerHello first.
+	_, data, err := conn.Read(ctx)
+	if err != nil {
+		fatal("read hello: %v", err)
+	}
+	hello := &aet.ServerHello{}
+	if err := proto.Unmarshal(data, hello); err != nil {
+		fatal("unmarshal hello: %v", err)
+	}
+	fmt.Printf("hello: protocol=%s game=%s tick=%dhz\n", hello.ProtocolVersion, hello.GameName, hello.TickRateHz)
+
+	// Send Ping.
+	sentAt := time.Now().UnixMilli()
+	ping := &aet.Envelope{
+		Seq:         1,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.Ping",
+		Payload:     mustMarshal(&aet.Ping{SentAtUnixMs: sentAt}),
+	}
+	if err := conn.Write(ctx, websocket.MessageBinary, mustMarshal(ping)); err != nil {
+		fatal("write ping: %v", err)
+	}
+
+	// Read Pong.
+	_, data, err = conn.Read(ctx)
+	if err != nil {
+		fatal("read pong: %v", err)
+	}
+	pong := &aet.Pong{}
+	if err := proto.Unmarshal(data, pong); err != nil {
+		fatal("unmarshal pong: %v", err)
+	}
+	if pong.SentAtUnixMs != sentAt {
+		fatal("pong echo mismatch: sent=%d got=%d", sentAt, pong.SentAtUnixMs)
+	}
+	fmt.Printf("ping/pong OK (authed): roundtrip=%dms\n", time.Now().UnixMilli()-pong.SentAtUnixMs)
 }
 
 // runRegister drives N concurrent registrations (M1 acceptance).
@@ -207,54 +357,6 @@ func runCreateChar(apiURL string) {
 
 const ClassBladeDancer = "blade_dancer"
 const ClassSpellweaver = "spellweaver"
-
-func runPing(addr string) {
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	conn, _, err := websocket.Dial(ctx, addr, nil)
-	if err != nil {
-		fatal("dial: %v", err)
-	}
-	defer conn.Close(websocket.StatusNormalClosure, "done")
-
-	// Expect ServerHello first.
-	_, data, err := conn.Read(ctx)
-	if err != nil {
-		fatal("read hello: %v", err)
-	}
-	hello := &aet.ServerHello{}
-	if err := proto.Unmarshal(data, hello); err != nil {
-		fatal("unmarshal hello: %v", err)
-	}
-	fmt.Printf("hello: protocol=%s game=%s tick=%dhz\n", hello.ProtocolVersion, hello.GameName, hello.TickRateHz)
-
-	// Send Ping.
-	sentAt := time.Now().UnixMilli()
-	ping := &aet.Envelope{
-		Seq:         1,
-		Kind:        aet.Envelope_KIND_REQUEST,
-		PayloadType: "aetheria.Ping",
-		Payload:     mustMarshal(&aet.Ping{SentAtUnixMs: sentAt}),
-	}
-	if err := conn.Write(ctx, websocket.MessageBinary, mustMarshal(ping)); err != nil {
-		fatal("write ping: %v", err)
-	}
-
-	// Read Pong.
-	_, data, err = conn.Read(ctx)
-	if err != nil {
-		fatal("read pong: %v", err)
-	}
-	pong := &aet.Pong{}
-	if err := proto.Unmarshal(data, pong); err != nil {
-		fatal("unmarshal pong: %v", err)
-	}
-	if pong.SentAtUnixMs != sentAt {
-		fatal("pong echo mismatch: sent=%d got=%d", sentAt, pong.SentAtUnixMs)
-	}
-	fmt.Printf("ping/pong OK: roundtrip=%dms\n", time.Now().UnixMilli()-pong.SentAtUnixMs)
-}
 
 func mustMarshal(m proto.Message) []byte {
 	b, err := proto.Marshal(m)

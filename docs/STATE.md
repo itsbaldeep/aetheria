@@ -40,22 +40,37 @@ Update at the end of every work block. Read at the start of every session.
       decoupled (Session/ClientConfig/ApiClient) and headless-tested;
       config.json next to exe (prod defaults); live Godot test
       (register→login→roster via ApiClient) passes; exported client boots.
-- [ ] gameserver WS handshake session validation + bans
-- [ ] bot scenario: register → login → create char → authed WS session
+- [x] gameserver WS handshake session validation + bans — DONE:
+      gameserver validates Bearer token via shared JWT key + DB ban check
+      before ServerHello; invalid/absent token → StatusPolicyViolation close;
+      banned (post-login) account → close reason "account_banned"; verified
+      live over public wss://play.aetheria... (authed hello, no-token reject,
+      bad-token reject, pre-ban-token rejected after ban).
+- [x] bot scenario: register → login → create char → authed WS session — DONE:
+      `full-auth` profile = M1 acceptance (brief §11). register 201 → login
+      token → create char 201 → authed WS hello → no-token reject → bad-token
+      reject → wrong-pw 401 → banned-at-handshake (AETHERIA_BANNED_TEST_TOKEN).
+      ALL PASS over live public endpoints. bottest now runs full-auth.
 
 ## Blockers
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M1.)
 
 ## Next action
-M1-5: gameserver WS handshake session validation. Client sends Bearer token
-in the WS handshake; gameserver validates it (shared session key) + checks
-ban status before ServerHello. Test = authed client connects + gets
-ServerHello; bad/absent token rejected; banned account rejected.
+M1 complete — tag m1-complete after `make test` green. Then M2 (play session:
+enter world with character, tick loop, position sync, disconnect) per brief
+§11. Run `make test` + `make bottest` first to confirm the acceptance suite
+is reproducible.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-11: M1-5 + M1-6 DONE. Gameserver WS handshake validates Bearer
+  session (shared JWT key + DB ban re-check before ServerHello); no/bad token
+  closed StatusPolicyViolation, banned account closed "account_banned". New
+  bot `full-auth` profile = M1 acceptance (register→login→create char→authed
+  WS hello + all rejection paths) ALL PASS over public wss/api TLS. bottest
+  target now runs full-auth. M1 acceptance criteria met; tag m1-complete.
 - 2026-08-11: M1-4 DONE. Godot Login + CharSelect scenes, session/ApiClient
   layer headless-tested, config.json next to exe; live Godot flow
   register→login→roster green; exported client boots to Login.

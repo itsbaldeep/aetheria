@@ -65,8 +65,8 @@ migrate-status:
 
 # ---- bot / integration tests ----
 bottest:
-	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -profile ping
-	@echo "bottest: ping profile OK"
+	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile full-auth
+	@echo "bottest: full-auth profile OK (M1 acceptance)"
 
 loadtest:
 	@echo "loadtest (M2+): spawn $(N) botclients for $(DURATION)"
