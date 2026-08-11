@@ -22,7 +22,7 @@ jobs:
           echo "/tmp/protoc/bin" >> "$GITHUB_PATH"
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
           echo "$HOME/go/bin" >> "$GITHUB_PATH"
-          protoc --version
+          /tmp/protoc/bin/protoc --version
 
       - name: Protocol codegen
         run: make content
