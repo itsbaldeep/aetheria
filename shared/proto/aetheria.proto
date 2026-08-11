@@ -1,0 +1,59 @@
+// Aetheria wire protocol — root package.
+// Single source of truth for the client↔server contract. See docs/protocol.md
+// for the generated reference.
+syntax = "proto3";
+
+package aetheria;
+
+option go_package = "github.com/itsbaldeep/aetheria/server/gen";
+
+// One logical message on the wire. Every WebSocket frame is a single Envelope
+// carrying a typed message plus optional trace context.
+message Envelope {
+  // client-generated monotonic sequence number for request/response pairing.
+  uint64 seq = 1;
+  // 1 = request (client intent or server command), 2 = response/event.
+  Kind kind = 2;
+  // Type tag of `payload` (message full name). Sent so decoders can dispatch.
+  string payload_type = 3;
+  bytes payload = 4;
+
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_REQUEST = 1;
+    KIND_EVENT = 2;
+  }
+}
+
+// M0: connection liveness check. Client → server, server replies Pong with
+// the same `sent_at_unix_ms` and current server unix ms.
+message Ping {
+  int64 sent_at_unix_ms = 1;
+}
+
+message Pong {
+  int64 sent_at_unix_ms = 1;
+  int64 server_time_unix_ms = 2;
+}
+
+// M0: post-connect greeting. Server → client immediately after the WS
+// handshake. Carries the protocol version for mismatch detection.
+message ServerHello {
+  string protocol_version = 1;   // e.g. "0.1.0"
+  string game_name = 2;          // from branding.json
+  uint32 tick_rate_hz = 3;       // server simulation rate
+}
+
+// M1: session validation happens on the WS handshake itself (HTTP header).
+// This message is reserved for in-band re-auth / heartbeat validation if the
+// handshake path ever changes.
+message SessionStatus {
+  enum State {
+    STATE_UNSPECIFIED = 0;
+    STATE_VALID = 1;
+    STATE_EXPIRED = 2;
+    STATE_BANNED = 3;
+  }
+  State state = 1;
+  int64 expires_at_unix_ms = 2;
+}

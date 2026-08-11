@@ -1,0 +1,15 @@
+{
+  "game_name": "Aetheria",
+  "tagline": "An open world of magic and steel.",
+  "portal_title": "Aetheria — Free MMORPG",
+  "copyright": "Aetheria",
+  "server_status_widget_label": "Server status",
+  "race": "Human",
+  "classes": ["Blade Dancer", "Spellweaver"],
+  "domains": {
+    "portal": "https://aetheria.apps.deployden.tech",
+    "api": "https://api.aetheria.apps.deployden.tech",
+    "admin": "https://admin.aetheria.apps.deployden.tech",
+    "ws": "wss://play.aetheria.apps.deployden.tech/ws"
+  }
+}

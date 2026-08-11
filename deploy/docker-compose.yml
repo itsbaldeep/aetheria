@@ -1,0 +1,58 @@
+# Aetheria docker-compose — the four Go services on the project network.
+# Postgres + Redis are separate long-lived containers (see AGENTS.md §6).
+# Secrets come from ~/aetheria/env via env_file (never in repo).
+#
+# Each service builds with its own --build-arg SERVICE via Makefile helpers,
+# but this compose file works standalone for a full bring-up.
+services:
+  authserver:
+    build:
+      context: ..
+      args: { SERVICE: authserver }
+    container_name: aetheria-authserver
+    restart: unless-stopped
+    env_file: ${AETHERIA_ENV_FILE:-/home/agency/aetheria/env}
+    network_mode: host
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  gameserver:
+    build:
+      context: ..
+      args: { SERVICE: gameserver }
+    container_name: aetheria-gameserver
+    restart: unless-stopped
+    env_file: ${AETHERIA_ENV_FILE:-/home/agency/aetheria/env}
+    network_mode: host
+    deploy:
+      resources:
+        limits:
+          memory: 4g
+
+  adminserver:
+    build:
+      context: ..
+      args: { SERVICE: adminserver }
+    container_name: aetheria-adminserver
+    restart: unless-stopped
+    env_file: ${AETHERIA_ENV_FILE:-/home/agency/aetheria/env}
+    network_mode: host
+    deploy:
+      resources:
+        limits:
+          memory: 256m
+
+  portal:
+    build:
+      context: ..
+      args: { SERVICE: portal }
+    container_name: aetheria-portal
+    restart: unless-stopped
+    env_file: ${AETHERIA_ENV_FILE:-/home/agency/aetheria/env}
+    network_mode: host
+    deploy:
+      resources:
+        limits:
+          memory: 512m

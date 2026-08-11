@@ -1,0 +1,24 @@
+# Aetheria Caddy routes — one file per app in ~/agency-os/caddy-apps/.
+# These are written by the executor AFTER human approval (Yellow gate), not
+# by the agent directly. Reference copy kept in the repo for review.
+# All four subdomains fall under the *.apps.deployden.tech wildcard.
+
+# Portal (public site)
+# https://aetheria.apps.deployden.tech {
+# 	reverse_proxy 127.0.0.1:3018
+# }
+
+# Auth API
+# https://api.aetheria.apps.deployden.tech {
+# 	reverse_proxy 127.0.0.1:3016
+# }
+
+# Admin dashboard (TOTP protected at app layer)
+# https://admin.aetheria.apps.deployden.tech {
+# 	reverse_proxy 127.0.0.1:3017
+# }
+
+# Game WebSocket
+# https://play.aetheria.apps.deployden.tech {
+# 	reverse_proxy 127.0.0.1:3015
+# }

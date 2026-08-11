@@ -1,0 +1,22 @@
+# Aetheria service unit template (ADR-003: retained for a privileged
+# migration; services currently run as Docker containers).
+# Copy to /etc/systemd/system/aetheria-<svc>.service when root is available.
+# Replace %SVC% with authserver|gameserver|adminserver|portal and set MemoryMax.
+
+[Unit]
+Description=Aetheria %SVC%
+After=docker.service
+Wants=docker.service
+
+[Service]
+User=agency
+ExecStart=/home/agency/projects/aetheria/server/bin/%SVC%
+EnvironmentFile=/home/agency/aetheria/env
+Restart=on-failure
+RestartSec=3
+MemoryMax=4G
+Nice=5
+LimitNOFILE=65535
+
+[Install]
+WantedBy=multi-user.target

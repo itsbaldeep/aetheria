@@ -1,0 +1,32 @@
+# Go
+server/bin/
+*.test
+*.out
+coverage/
+
+# Client exports / builds
+client/build/
+client/.godot/
+client/export_templates/
+*.zip
+*.exe
+*.pck
+
+# Local config / secrets
+.env
+deploy/env
+*.local.yaml
+
+# OS
+.DS_Store
+
+# Loop control (human/agent locks — never committed)
+.manual
+.stopandask
+
+# Godot
+client/.import/
+*.import
+
+# Logs
+*.log
