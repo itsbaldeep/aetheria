@@ -73,9 +73,10 @@ questrun:
 
 # ---- client export ----
 export-client:
-	@cd client && $(GODOT) --headless --export-release Linux . 2>&1 | tail -3 && \
-	$(GODOT) --headless --export-release Windows . 2>&1 | tail -3
-	@echo "client exported to client/build/"
+	@mkdir -p client/build
+	@cd client && $(GODOT) --headless --export-release Linux build/aetheria-linux.x86_64 2>&1 | grep -q "ERROR" && exit 1 || true
+	@cd client && $(GODOT) --headless --export-release Windows build/aetheria-windows.exe 2>&1 | grep -q "ERROR" && exit 1 || true
+	@echo "client exported to client/build/ (linux + windows)"
 
 # ---- deploy ----
 deploy: build
