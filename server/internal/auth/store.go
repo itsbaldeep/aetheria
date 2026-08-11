@@ -81,3 +81,19 @@ func (s *Store) Login(ctx context.Context, accountID int64, ip string) error {
 	}
 	return nil
 }
+
+// BannedUntil returns the account's ban expiry, or nil if not banned.
+// Used by the gameserver to re-check bans at WS handshake time (a token can
+// outlive a fresh ban, so signature validity alone is insufficient).
+func (s *Store) BannedUntil(ctx context.Context, accountID int64) (*time.Time, error) {
+	var banned *time.Time
+	err := s.pool.QueryRow(ctx,
+		`SELECT banned_until FROM accounts WHERE id = $1`, accountID).Scan(&banned)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("auth: fetch ban: %w", err)
+	}
+	return banned, nil
+}
