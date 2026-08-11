@@ -1,0 +1,4 @@
+{
+	"api_base": "https://api.aetheria.apps.deployden.tech",
+	"ws_url": "wss://play.aetheria.apps.deployden.tech/ws"
+}

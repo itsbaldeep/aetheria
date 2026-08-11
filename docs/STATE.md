@@ -35,7 +35,11 @@ Update at the end of every work block. Read at the start of every session.
       cap 6, name-taken 409, soft-delete reaping) + /auth/characters (list);
       Bearer-token auth. bot create-char profile: 401/400/201/409 + roster
       all green.
-- [ ] client login + character select/create screens
+- [x] client login + character select/create screens — DONE: Login.tscn,
+      CharSelect.tscn (list/create/play-stub), Boot hands off; session logic
+      decoupled (Session/ClientConfig/ApiClient) and headless-tested;
+      config.json next to exe (prod defaults); live Godot test
+      (register→login→roster via ApiClient) passes; exported client boots.
 - [ ] gameserver WS handshake session validation + bans
 - [ ] bot scenario: register → login → create char → authed WS session
 
@@ -43,14 +47,18 @@ Update at the end of every work block. Read at the start of every session.
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M1.)
 
 ## Next action
-M1-4: client login + character select/create screens (Godot). Scenes:
-login → character select/create → (world stub). Headless-testable:
-protocol/session logic in scripts decoupled from rendering (brief §7).
+M1-5: gameserver WS handshake session validation. Client sends Bearer token
+in the WS handshake; gameserver validates it (shared session key) + checks
+ban status before ServerHello. Test = authed client connects + gets
+ServerHello; bad/absent token rejected; banned account rejected.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-11: M1-4 DONE. Godot Login + CharSelect scenes, session/ApiClient
+  layer headless-tested, config.json next to exe; live Godot flow
+  register→login→roster green; exported client boots to Login.
 - 2026-08-11: M1-3 DONE. Character create/list endpoints live: name rules,
   class whitelist, roster cap, duplicate 409, Bearer auth; bot profile
   verifies 401/400/201/409 + roster.

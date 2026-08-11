@@ -51,7 +51,10 @@ test: vet fmtcheck content
 	@$(MAKE) --no-print-directory client-tests
 
 client-tests:
+	@cd client && $(GODOT) --headless --path . --import >/dev/null 2>&1 || true
 	@cd client && $(GODOT) --headless --path . --script res://scripts/test_proto.gd 2>&1 | grep -q "ALL PASS" && echo "godot proto tests: PASS"
+	@cd client && $(GODOT) --headless --path . --script res://scripts/test_session.gd 2>&1 | grep -q "ALL PASS" && echo "godot session tests: PASS"
+	@cd client && $(GODOT) --headless --path . --script res://scripts/test_scenes.gd 2>&1 | grep -q "ALL PASS" && echo "godot scene tests: PASS"
 
 # ---- database ----
 migrate:
@@ -76,7 +79,8 @@ export-client:
 	@mkdir -p client/build
 	@cd client && $(GODOT) --headless --export-release Linux build/aetheria-linux.x86_64 2>&1 | grep -q "ERROR" && exit 1 || true
 	@cd client && $(GODOT) --headless --export-release Windows build/aetheria-windows.exe 2>&1 | grep -q "ERROR" && exit 1 || true
-	@echo "client exported to client/build/ (linux + windows)"
+	@cp client/config.json client/build/config.json
+	@echo "client exported to client/build/ (linux + windows + config.json)"
 
 # ---- deploy ----
 deploy: build
