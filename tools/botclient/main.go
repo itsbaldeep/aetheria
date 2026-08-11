@@ -22,19 +22,46 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	aet "github.com/itsbaldeep/aetheria/server/gen"
+	"github.com/itsbaldeep/aetheria/tools/botclient/scenarios"
 )
 
 func main() {
 	addr := flag.String("addr", "wss://play.aetheria.apps.deployden.tech/ws", "gameserver websocket URL")
-	profile := flag.String("profile", "ping", "behavior profile (ping|roamer|grinder|quester|trader|partygoer|chaos)")
+	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|roamer|grinder|quester|trader|partygoer|chaos)")
+	api := flag.String("api", "http://127.0.0.1:3016", "authserver base URL (http://host:port)")
+	n := flag.Int("n", 20, "count for batch profiles (register)")
 	flag.Parse()
 
 	switch *profile {
 	case "ping":
 		runPing(*addr)
+	case "register":
+		runRegister(*api, *n)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M0 implements 'ping' only)\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping' and 'register')\n", *profile)
 		os.Exit(2)
+	}
+}
+
+// runRegister drives N concurrent registrations (M1 acceptance).
+func runRegister(apiURL string, n int) {
+	// Timestamped email prefix so repeat runs never collide with leftover
+	// accounts from a previous run (register is idempotent across runs).
+	stamp := time.Now().UTC().Format("20060102T150405")
+	cfg := scenarios.RegisterConfig{
+		BaseURL:   apiURL,
+		Count:     n,
+		EmailFmt:  "botreg-" + stamp + "-%d@aetheria.test",
+		Password:  "bot-pass-42",
+		BatchSize: 8,
+	}
+	ok, err := scenarios.RegisterBatch(cfg)
+	if err != nil {
+		fatal("register batch: %v", err)
+	}
+	fmt.Printf("register OK: %d/%d accounts created\n", ok, n)
+	if ok != n {
+		fatal("register: only %d/%d succeeded", ok, n)
 	}
 }
 

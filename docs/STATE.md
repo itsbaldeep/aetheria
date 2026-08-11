@@ -20,8 +20,14 @@ Update at the end of every work block. Read at the start of every session.
 - [x] Tagged m0-complete
 
 ### M1 — Accounts & Auth (current)
-- [ ] portal registration (email+password, validation, rate limits)
-- [ ] authserver login → session token (argon2id)
+- [x] portal registration (email+password, validation, rate limits) — DONE:
+      authserver /auth/register + /auth/login; portal /register form + proxy;
+      argon2id hashing (OWASP params), email/password validation, Redis
+      per-IP rate limit (register 5/15m, login 10/15m), 2-slot argon2
+      semaphore (hash-storm + OOM guard). bot register: 20/20 concurrent
+      green; argon2id verified in DB; public portal works over TLS.
+- [ ] authserver login → session token (argon2id) — register/login API live,
+      login returns account id (token lands M1-2)
 - [ ] character create/select endpoints
 - [ ] client login + character select/create screens
 - [ ] gameserver WS handshake session validation + bans
@@ -31,13 +37,19 @@ Update at the end of every work block. Read at the start of every session.
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M1.)
 
 ## Next action
-M1 task 1: portal registration endpoint. Test = bot registers 20 concurrent
-accounts, argon2id hash in DB, wrong-password rejected.
+M1-2: authserver login → short-lived signed session token (HMAC/PASETO,
+≤24 h TTL from AETHERIA_SESSION_KEY + AETHERIA_SESSION_TTL_HOURS). Test =
+bot logs in → token verifies; wrong password / banned account rejected
+(already stubbed in /auth/login).
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-11: M1-1 DONE. Portal registration live over TLS: authserver
+  /auth/register (argon2id, validation, Redis rate-limit, 2-slot hash
+  semaphore after OOM fix), portal /register form + proxy, bot register
+  20/20, argon2id in DB, duplicate/weak-password rejected.
 - 2026-08-11: M0 COMPLETE. Human approved all 8 approvals; executor wrote
   Caddy routes; all 4 subdomains verified over TLS (HTTP 200, cert trusted);
   bot ping/pong over public wss. Tagged m0-complete. M1 begins.

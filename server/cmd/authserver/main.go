@@ -3,8 +3,13 @@
 package main
 
 import (
+	"context"
 	"net/http"
+	"os"
 
+	"github.com/redis/go-redis/v9"
+
+	"github.com/itsbaldeep/aetheria/server/internal/auth"
 	"github.com/itsbaldeep/aetheria/server/internal/platform"
 )
 
@@ -12,9 +17,41 @@ func main() {
 	s := &platform.Service{Name: "authserver"}
 	addr := "127.0.0.1:" + platform.Env("AETHERIA_AUTH_PORT", "3016")
 
+	pgDSN := platform.Env("AETHERIA_PG_DSN", "")
+	if pgDSN == "" {
+		// Build from parts so the env file stays split and secret-safe.
+		pgDSN = "postgres://" + platform.Env("AETHERIA_PG_USER", "aetheria") + ":" +
+			platform.Env("AETHERIA_PG_PASSWORD", "") + "@" +
+			platform.Env("AETHERIA_PG_HOST", "127.0.0.1") + ":" +
+			platform.Env("AETHERIA_PG_PORT", "5004") + "/" +
+			platform.Env("AETHERIA_PG_DB", "aetheria") + "?sslmode=disable"
+	}
+
+	ctx := context.Background()
+	store, err := auth.NewStore(ctx, pgDSN)
+	if err != nil {
+		s.Log("fatal", "db connect failed", "error", err)
+		os.Exit(1)
+	}
+	defer store.Close()
+
+	rdb := redis.NewClient(&redis.Options{
+		Addr:     platform.Env("AETHERIA_REDIS_HOST", "127.0.0.1") + ":" + platform.Env("AETHERIA_REDIS_PORT", "5005"),
+		Password: platform.Env("AETHERIA_REDIS_PASSWORD", ""),
+	})
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		s.Log("fatal", "redis connect failed", "error", err)
+		os.Exit(1)
+	}
+	defer rdb.Close()
+
+	api := auth.NewServer(store, auth.NewLimiter(rdb))
+	api.Logf = s.Log
+
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.Healthz())
-	// M1: register/login/character endpoints land here.
+	mux.HandleFunc("/auth/register", api.HandleRegister)
+	mux.HandleFunc("/auth/login", api.HandleLogin)
 
 	s.Log("info", "authserver listening", "addr", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
