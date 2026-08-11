@@ -6,6 +6,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 
@@ -45,7 +46,14 @@ func main() {
 	}
 	defer rdb.Close()
 
-	api := auth.NewServer(store, auth.NewLimiter(rdb))
+	ttlHours, _ := time.ParseDuration(platform.Env("AETHERIA_SESSION_TTL_HOURS", "24") + "h")
+	session, err := auth.NewSessionManager(platform.Env("AETHERIA_SESSION_KEY", ""), ttlHours)
+	if err != nil {
+		s.Log("fatal", "session manager init failed", "error", err)
+		os.Exit(1)
+	}
+
+	api := auth.NewServer(store, auth.NewLimiter(rdb), session)
 	api.Logf = s.Log
 
 	mux := http.NewServeMux()

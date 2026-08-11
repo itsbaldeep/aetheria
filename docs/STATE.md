@@ -26,8 +26,10 @@ Update at the end of every work block. Read at the start of every session.
       per-IP rate limit (register 5/15m, login 10/15m), 2-slot argon2
       semaphore (hash-storm + OOM guard). bot register: 20/20 concurrent
       green; argon2id verified in DB; public portal works over TLS.
-- [ ] authserver login → session token (argon2id) — register/login API live,
-      login returns account id (token lands M1-2)
+- [x] authserver login → session token — DONE: HS256 JWT (golang-jwt),
+      ≤24 h TTL (AETHERIA_SESSION_KEY/TTL_HOURS), login records `logins`
+      audit row. bot login profile: token issued + expires_at, wrong
+      password 401, unknown email 401, banned 403 — all verified live.
 - [ ] character create/select endpoints
 - [ ] client login + character select/create screens
 - [ ] gameserver WS handshake session validation + bans
@@ -37,15 +39,16 @@ Update at the end of every work block. Read at the start of every session.
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M1.)
 
 ## Next action
-M1-2: authserver login → short-lived signed session token (HMAC/PASETO,
-≤24 h TTL from AETHERIA_SESSION_KEY + AETHERIA_SESSION_TTL_HOURS). Test =
-bot logs in → token verifies; wrong password / banned account rejected
-(already stubbed in /auth/login).
+M1-3: character create/select endpoints (name rules, class choice per
+brief §6: Human race, Blade Dancer / Spellweaver). Test = bot creates a
+character, lists it, name rules enforced server-side.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-11: M1-2 DONE. Login issues HS256 JWT (24 h, key+ttl from env);
+  logins audited; bot profile verifies token + 401/403 rejection paths.
 - 2026-08-11: M1-1 DONE. Portal registration live over TLS: authserver
   /auth/register (argon2id, validation, Redis rate-limit, 2-slot hash
   semaphore after OOM fix), portal /register form + proxy, bot register

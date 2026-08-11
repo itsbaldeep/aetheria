@@ -3,6 +3,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"time"
@@ -12,6 +13,7 @@ import (
 type Server struct {
 	store   *Store
 	limiter *Limiter
+	session *SessionManager
 	// Logf receives internal errors for diagnosis (never sent to clients).
 	Logf func(level, msg string, kv ...any)
 	// hashes bounds concurrent argon2 hashing. argon2 uses ~64 MiB each, so
@@ -24,10 +26,11 @@ type Server struct {
 	Window        time.Duration
 }
 
-func NewServer(store *Store, limiter *Limiter) *Server {
+func NewServer(store *Store, limiter *Limiter, session *SessionManager) *Server {
 	return &Server{
 		store:         store,
 		limiter:       limiter,
+		session:       session,
 		hashes:        make(chan struct{}, 2),
 		RegisterLimit: 5,
 		LoginLimit:    10,
@@ -155,8 +158,25 @@ func (s *Server) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "bad_credentials"})
 		return
 	}
-	// M1-2 replaces this stub with a signed token. Return account id for now.
-	writeJSON(w, http.StatusOK, map[string]any{"id": id})
+	token, expiresAt, err := s.session.Issue(id)
+	if err != nil {
+		s.srvErr(w, err)
+		return
+	}
+	s.recordLogin(r.Context(), id, ip)
+	writeJSON(w, http.StatusOK, map[string]any{
+		"id":         id,
+		"token":      token,
+		"expires_at": expiresAt.UTC().Format(time.RFC3339),
+	})
+}
+
+// recordLogin appends a row to the logins table (brief §5). Failure is
+// non-fatal — a missing audit row must never block a successful login.
+func (s *Server) recordLogin(ctx context.Context, accountID int64, ip string) {
+	if err := s.store.Login(ctx, accountID, ip); err != nil && s.Logf != nil {
+		s.Logf("warn", "logins insert failed", "account_id", accountID, "error", err.Error())
+	}
 }
 
 func clientIP(r *http.Request) string {

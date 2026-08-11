@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -48,8 +49,12 @@ func RegisterBatch(cfg RegisterConfig) (ok int, err error) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
+			email := cfg.EmailFmt
+			if strings.Contains(email, "%d") {
+				email = fmt.Sprintf(email, i)
+			}
 			body, _ := json.Marshal(map[string]string{
-				"email":    fmt.Sprintf(cfg.EmailFmt, i),
+				"email":    email,
 				"password": cfg.Password,
 			})
 			req, rerr := http.NewRequest(http.MethodPost, addr, bytes.NewReader(body))

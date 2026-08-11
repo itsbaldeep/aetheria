@@ -71,3 +71,13 @@ func isUniqueViolation(err error) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
+
+// Login records a successful login (audit trail, brief §5 `logins`).
+func (s *Store) Login(ctx context.Context, accountID int64, ip string) error {
+	_, err := s.pool.Exec(ctx,
+		`INSERT INTO logins (account_id, ip) VALUES ($1, $2)`, accountID, ip)
+	if err != nil {
+		return fmt.Errorf("auth: insert login: %w", err)
+	}
+	return nil
+}

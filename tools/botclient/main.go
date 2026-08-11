@@ -37,8 +37,10 @@ func main() {
 		runPing(*addr)
 	case "register":
 		runRegister(*api, *n)
+	case "login":
+		runLogin(*api)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping' and 'register')\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping', 'register', 'login')\n", *profile)
 		os.Exit(2)
 	}
 }
@@ -62,6 +64,71 @@ func runRegister(apiURL string, n int) {
 	fmt.Printf("register OK: %d/%d accounts created\n", ok, n)
 	if ok != n {
 		fatal("register: only %d/%d succeeded", ok, n)
+	}
+}
+
+// runLogin exercises the M1-2 login acceptance: a correct credential pair
+// yields a token, wrong password / unknown email / banned account are
+// rejected. Registers a throwaway account first so the email is real.
+func runLogin(apiURL string) {
+	stamp := time.Now().UTC().Format("20060102T150405")
+	email := "botlogin-" + stamp + "@aetheria.test"
+	pw := "login-pass-77"
+
+	regCfg := scenarios.RegisterConfig{
+		BaseURL: apiURL, Count: 1, EmailFmt: email, Password: pw, BatchSize: 1,
+	}
+	if _, err := scenarios.RegisterBatch(regCfg); err != nil {
+		fatal("seed account: %v", err)
+	}
+
+	// Correct credentials → token.
+	ok, err := scenarios.Login(apiURL, email, pw)
+	if err != nil {
+		fatal("login: %v", err)
+	}
+	if ok.Status != 200 {
+		fatal("login(correct) status=%d want 200 (err=%s)", ok.Status, ok.Error)
+	}
+	if ok.Token == "" {
+		fatal("login(correct) returned no token")
+	}
+	if ok.AccountID == 0 {
+		fatal("login(correct) returned no account id")
+	}
+	fmt.Printf("login OK: token issued for account %d, expires %s\n", ok.AccountID, ok.ExpiresAt)
+
+	// Wrong password → 401.
+	bad, err := scenarios.Login(apiURL, email, "wrong-password-99")
+	if err != nil {
+		fatal("login wrong pw: %v", err)
+	}
+	if bad.Status != 401 {
+		fatal("login(wrong pw) status=%d want 401", bad.Status)
+	}
+	fmt.Printf("login OK: wrong password rejected (401)\n")
+
+	// Unknown email → 401.
+	unk, err := scenarios.Login(apiURL, "nobody@aetheria.test", pw)
+	if err != nil {
+		fatal("login unknown: %v", err)
+	}
+	if unk.Status != 401 {
+		fatal("login(unknown) status=%d want 401", unk.Status)
+	}
+	fmt.Printf("login OK: unknown email rejected (401)\n")
+
+	// Banned account → 403. The banned email is supplied out-of-band (a
+	// previous run or admin action set banned_until); skip if unset.
+	if banned := os.Getenv("AETHERIA_BANNED_TEST_EMAIL"); banned != "" {
+		b, err := scenarios.Login(apiURL, banned, pw)
+		if err != nil {
+			fatal("login banned: %v", err)
+		}
+		if b.Status != 403 {
+			fatal("login(banned) status=%d want 403 (err=%s)", b.Status, b.Error)
+		}
+		fmt.Printf("login OK: banned account rejected (403)\n")
 	}
 }
 
