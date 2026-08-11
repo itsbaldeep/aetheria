@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -177,6 +178,81 @@ func (s *Server) recordLogin(ctx context.Context, accountID int64, ip string) {
 	if err := s.store.Login(ctx, accountID, ip); err != nil && s.Logf != nil {
 		s.Logf("warn", "logins insert failed", "account_id", accountID, "error", err.Error())
 	}
+}
+
+// authenticate extracts and verifies the Bearer session token. Returns the
+// account id or 0 when missing/invalid.
+func (s *Server) authenticate(r *http.Request) int64 {
+	tok := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+	if tok == "" || tok == r.Header.Get("Authorization") {
+		return 0
+	}
+	id, err := s.session.Verify(tok)
+	if err != nil {
+		return 0
+	}
+	return id
+}
+
+type createCharReq struct {
+	Name  string `json:"name"`
+	Class string `json:"class"`
+}
+
+// HandleCreateCharacter is authenticated; validates name + class server-side.
+//
+//	201 + character   success
+//	400               bad name/class
+//	401               missing/invalid session
+//	409               name taken or roster full
+func (s *Server) HandleCreateCharacter(w http.ResponseWriter, r *http.Request) {
+	accountID := s.authenticate(r)
+	if accountID == 0 {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not_authenticated"})
+		return
+	}
+	var req createCharReq
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "bad_request"})
+		return
+	}
+	name, err := ValidateCharacterName(req.Name)
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+		return
+	}
+	if !ValidCharacterClass(req.Class) {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrBadClass.Error()})
+		return
+	}
+	c, err := s.store.CreateCharacter(r.Context(), accountID, name, req.Class)
+	switch {
+	case err == ErrNameTaken:
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "name_taken"})
+	case err == ErrCharLimit:
+		writeJSON(w, http.StatusConflict, map[string]string{"error": "char_limit"})
+	case err != nil:
+		s.srvErr(w, err)
+	default:
+		writeJSON(w, http.StatusCreated, c)
+	}
+}
+
+// HandleListCharacters returns the account roster (authenticated).
+//
+//	200 + [{id,name,class,level,zone_id}, …]
+func (s *Server) HandleListCharacters(w http.ResponseWriter, r *http.Request) {
+	accountID := s.authenticate(r)
+	if accountID == 0 {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "not_authenticated"})
+		return
+	}
+	chars, err := s.store.ListCharacters(r.Context(), accountID)
+	if err != nil {
+		s.srvErr(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"characters": chars})
 }
 
 func clientIP(r *http.Request) string {

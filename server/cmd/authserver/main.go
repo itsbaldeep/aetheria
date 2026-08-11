@@ -60,6 +60,8 @@ func main() {
 	mux.HandleFunc("/healthz", s.Healthz())
 	mux.HandleFunc("/auth/register", api.HandleRegister)
 	mux.HandleFunc("/auth/login", api.HandleLogin)
+	mux.HandleFunc("/auth/characters", api.HandleListCharacters)
+	mux.HandleFunc("/auth/characters/create", api.HandleCreateCharacter)
 
 	s.Log("info", "authserver listening", "addr", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {

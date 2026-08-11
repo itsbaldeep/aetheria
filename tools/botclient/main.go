@@ -39,8 +39,10 @@ func main() {
 		runRegister(*api, *n)
 	case "login":
 		runLogin(*api)
+	case "create-char":
+		runCreateChar(*api)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping', 'register', 'login')\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping', 'register', 'login', 'create-char')\n", *profile)
 		os.Exit(2)
 	}
 }
@@ -131,6 +133,80 @@ func runLogin(apiURL string) {
 		fmt.Printf("login OK: banned account rejected (403)\n")
 	}
 }
+
+// runCreateChar exercises M1-3: register → login → create character →
+// list roster; also asserts server-side name/class validation and
+// authentication gating.
+func runCreateChar(apiURL string) {
+	stamp := time.Now().UTC().Format("20060102T150405")
+	email := "botchar-" + stamp + "@aetheria.test"
+	pw := "charbot-pass-7"
+
+	if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
+		BaseURL: apiURL, Count: 1, EmailFmt: email, Password: pw, BatchSize: 1,
+	}); err != nil {
+		fatal("seed account: %v", err)
+	}
+	lg, err := scenarios.Login(apiURL, email, pw)
+	if err != nil {
+		fatal("login: %v", err)
+	}
+	if lg.Token == "" {
+		fatal("login returned no token")
+	}
+
+	// No token → 401.
+	if st, _, _ := scenarios.CreateCharacter(apiURL, "", "NoAuth", ClassBladeDancer); st != 401 {
+		fatal("create-char(no token) status=%d want 401", st)
+	}
+	fmt.Printf("create-char OK: unauthenticated create rejected (401)\n")
+
+	// Bad name → 400.
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, "a", ClassBladeDancer); st != 400 {
+		fatal("create-char(bad name) status=%d want 400", st)
+	}
+	// Bad class → 400.
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, "ValidName", "knight"); st != 400 {
+		fatal("create-char(bad class) status=%d want 400", st)
+	}
+	fmt.Printf("create-char OK: bad name/class rejected (400)\n")
+
+	// Valid create → 201.
+	name := "Aria" + fmt.Sprint(stamp[len(stamp)-4:])
+	st, _, err := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer)
+	if err != nil {
+		fatal("create-char: %v", err)
+	}
+	if st != 201 {
+		fatal("create-char(valid) status=%d want 201", st)
+	}
+	fmt.Printf("create-char OK: created %q (blade_dancer)\n", name)
+
+	// Duplicate name → 409.
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassSpellweaver); st != 409 {
+		fatal("create-char(dup name) status=%d want 409", st)
+	}
+	fmt.Printf("create-char OK: duplicate name rejected (409)\n")
+
+	// Roster lists the character.
+	chars, st, err := scenarios.ListCharacters(apiURL, lg.Token)
+	if err != nil {
+		fatal("list chars: %v", err)
+	}
+	if st != 200 {
+		fatal("list chars status=%d want 200", st)
+	}
+	if len(chars) != 1 {
+		fatal("list chars len=%d want 1", len(chars))
+	}
+	if chars[0]["name"] != name || chars[0]["class"] != ClassBladeDancer {
+		fatal("list chars returned wrong character: %v", chars[0])
+	}
+	fmt.Printf("create-char OK: roster lists %q (class=%s)\n", chars[0]["name"], chars[0]["class"])
+}
+
+const ClassBladeDancer = "blade_dancer"
+const ClassSpellweaver = "spellweaver"
 
 func runPing(addr string) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)

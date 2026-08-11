@@ -30,7 +30,11 @@ Update at the end of every work block. Read at the start of every session.
       ≤24 h TTL (AETHERIA_SESSION_KEY/TTL_HOURS), login records `logins`
       audit row. bot login profile: token issued + expires_at, wrong
       password 401, unknown email 401, banned 403 — all verified live.
-- [ ] character create/select endpoints
+- [x] character create/select endpoints — DONE: /auth/characters/create
+      (name rules 2-16 alnum/_, 2 classes blade_dancer|spellweaver, roster
+      cap 6, name-taken 409, soft-delete reaping) + /auth/characters (list);
+      Bearer-token auth. bot create-char profile: 401/400/201/409 + roster
+      all green.
 - [ ] client login + character select/create screens
 - [ ] gameserver WS handshake session validation + bans
 - [ ] bot scenario: register → login → create char → authed WS session
@@ -39,14 +43,17 @@ Update at the end of every work block. Read at the start of every session.
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M1.)
 
 ## Next action
-M1-3: character create/select endpoints (name rules, class choice per
-brief §6: Human race, Blade Dancer / Spellweaver). Test = bot creates a
-character, lists it, name rules enforced server-side.
+M1-4: client login + character select/create screens (Godot). Scenes:
+login → character select/create → (world stub). Headless-testable:
+protocol/session logic in scripts decoupled from rendering (brief §7).
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-11: M1-3 DONE. Character create/list endpoints live: name rules,
+  class whitelist, roster cap, duplicate 409, Bearer auth; bot profile
+  verifies 401/400/201/409 + roster.
 - 2026-08-11: M1-2 DONE. Login issues HS256 JWT (24 h, key+ttl from env);
   logins audited; bot profile verifies token + 401/403 rejection paths.
 - 2026-08-11: M1-1 DONE. Portal registration live over TLS: authserver
