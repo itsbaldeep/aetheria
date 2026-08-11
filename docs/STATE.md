@@ -3,11 +3,14 @@
 Update at the end of every work block. Read at the start of every session.
 
 ## Current milestone
-**M2 — World presence & movement** (enter world, tick loop, position sync, AOI, disconnect)
+**M3 — Chat & social** (world chat, channels, online presence list; combat core lands with mobs in M3/M4)
 
 ## Milestone checklists
 
-### M2 — World presence & movement (current)
+### M3 — Chat & social (current)
+- [ ] (plan after reading brief §11 + FEEDBACK/HUMAN_TODO)
+
+### M2 — World presence & movement ✅ m2-complete (tag)
 - [x] M2 proto messages + Go/GDScript codegen + docs/protocol — DONE:
       Vec3/EnterWorld/EnterWorldAck/MoveIntent/EntityState/WorldSnapshot/
       LeaveWorld; `make content` regeneration.
@@ -23,9 +26,10 @@ Update at the end of every work block. Read at the start of every session.
       emberfield 600×600; /control/ccu endpoint; class speeds (bd 8.0, sw 7.0).
 - [x] bot client world scenarios — DONE: WorldBot, presence, roamer, chaos
       profiles; presence = M2 acceptance (A↔B mutual spawn/move/despawn).
-- [x] M2 acceptance live (local) — DONE: presence ALL PASS, roamer 5 bots
-      ~100 snap/s, chaos 211 fuzz frames 0 crashes + fresh conn healthy.
-- [ ] tag m2-complete (after bottest wired to M2 + public wss spot check)
+- [x] M2 acceptance live — DONE: presence ALL PASS over local ws AND public
+      wss://play.aetheria.../ws TLS; roamer 5 bots ~100 snap/s; chaos fuzz 0
+      crashes + fresh conn healthy. bottest now runs full-auth + presence +
+      roamer + chaos (all green). Tagged m2-complete.
 
 ### M1 — Accounts & Auth ✅ m1-complete (tag)
 
@@ -75,16 +79,21 @@ Update at the end of every work block. Read at the start of every session.
 
 ## Blockers
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M2.)
-
 ## Next action
-Wire `make bottest` to an M2 target (presence + roamer + chaos), do a public
-`wss://play.aetheria...` spot check of presence, tag m2-complete. Then M3
-(chat, combat core, mobs) per brief §11.
+Read brief §11 M3 scope + docs/BRIEF.md chat/combat sections and FEEDBACK.md;
+plan M3 sub-tasks. Likely: world chat proto (ChatMessage/channel join), wire
+dispatch, hub relay + broadcast, bot chat scenario, client chat HUD.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-11: M2 complete + tagged m2-complete. Root-caused the chaos-EOF:
+  Pong is a raw proto on the wire (M1), bot wrongly expected an Envelope; all
+  outgoing server frames now flow through the single-writer outbox (fixed a
+  real concurrent-write bug), Player.Ready gates snapshots until EnterWorldAck.
+  botclient presence/roamer/chaos ALL PASS local + presence over public wss
+  TLS; bottest wired to all 4 profiles (green); M2 tagged + pushed.
 - 2026-08-11: M2 core + acceptance DONE. World sim (20 Hz, AOI 30 m cells,
   3×3 view, speed/bounds clamps), wire EnterWorld/MoveIntent/LeaveWorld with
   single-writer outbox (fixed concurrent-write bug: hello/pong/ack now flow
