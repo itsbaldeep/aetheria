@@ -106,17 +106,6 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	}
 	h.s.Log("info", "client connected", "remote", remote, "account_id", accountID)
 
-	// Greeting after authentication (M0/M1 protocol handshake).
-	hello := &aet.ServerHello{
-		ProtocolVersion: "0.1.0",
-		GameName:        "Aetheria",
-		TickRateHz:      20,
-	}
-	if err := h.send(conn, hello); err != nil {
-		h.s.Log("warn", "hello send failed", "remote", remote, "error", err)
-		return
-	}
-
 	st := &connState{conn: conn, accountID: accountID}
 	if h.sim != nil {
 		st.outbox = h.sim.NewPlayerOutbox()
@@ -129,8 +118,10 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 		}
 	}()
 
-	// Writer goroutine: drains the connection's outbox (fixed channel) and
-	// writes frames to the socket. Frames are pre-marshalled Envelopes.
+	// Writer goroutine: the single writer on this socket. It drains the
+	// connection's outbox channel; every outgoing frame (hello, pong, ack,
+	// snapshots) goes through this channel so there is never a concurrent
+	// write on the coder/websocket Conn.
 	writeErr := make(chan error, 1)
 	stopWriter := make(chan struct{})
 	outbox := st.outbox
@@ -153,6 +144,18 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}()
+
+	// Greeting after authentication (M0/M1 protocol handshake).
+	hello := &aet.ServerHello{
+		ProtocolVersion: "0.1.0",
+		GameName:        "Aetheria",
+		TickRateHz:      20,
+	}
+	if err := h.enqueue(st, hello); err != nil {
+		h.s.Log("warn", "hello send failed", "remote", remote, "error", err)
+		close(stopWriter)
+		return
+	}
 
 	// Read loop.
 	for {
@@ -203,14 +206,22 @@ func (h *Hub) validateHandshake(r *http.Request) (int64, error) {
 	return h.v.Validate(ctx, token)
 }
 
-func (h *Hub) send(conn *websocket.Conn, msg proto.Message) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
+// enqueue marshals a message and pushes it into the connection's outbox for
+// the single writer goroutine. It blocks up to 10 s for backpressure rather
+// than dropping a pong/ack (snapshots in the sim drop on overflow instead).
+func (h *Hub) enqueue(st *connState, msg proto.Message) error {
 	b, err := proto.Marshal(msg)
 	if err != nil {
 		return err
 	}
-	return conn.Write(ctx, websocket.MessageBinary, b)
+	t := time.NewTimer(10 * time.Second)
+	defer t.Stop()
+	select {
+	case st.outbox <- b:
+		return nil
+	case <-t.C:
+		return errors.New("outbox send timeout")
+	}
 }
 
 // receive reads one binary frame and decodes it as an Envelope.
@@ -243,7 +254,7 @@ func (h *Hub) dispatch(ctx context.Context, st *connState, env *aet.Envelope) bo
 			SentAtUnixMs:     p.SentAtUnixMs,
 			ServerTimeUnixMs: time.Now().UnixMilli(),
 		}
-		if err := h.send(st.conn, pong); err != nil {
+		if err := h.enqueue(st, pong); err != nil {
 			h.s.Log("warn", "pong send failed", "error", err)
 		}
 		return false
@@ -275,22 +286,22 @@ func (h *Hub) handleEnterWorld(ctx context.Context, st *connState, env *aet.Enve
 	req := &aet.EnterWorld{}
 	if err := proto.Unmarshal(env.Payload, req); err != nil {
 		h.s.Log("warn", "bad enter payload", "error", err)
-		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "bad_request"})
+		h.enqueue(st, &aet.EnterWorldAck{Ok: false, Error: "bad_request"})
 		return false
 	}
 	if h.sim == nil || h.cl == nil {
-		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "world_unavailable"})
+		h.enqueue(st, &aet.EnterWorldAck{Ok: false, Error: "world_unavailable"})
 		return false
 	}
 
 	spawn, err := h.cl.LoadCharacter(ctx, st.accountID, req.CharacterId)
 	if err != nil {
 		h.s.Log("warn", "enter world load failed", "error", err)
-		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "load_failed"})
+		h.enqueue(st, &aet.EnterWorldAck{Ok: false, Error: "load_failed"})
 		return false
 	}
 	if spawn == nil {
-		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "character_not_found"})
+		h.enqueue(st, &aet.EnterWorldAck{Ok: false, Error: "character_not_found"})
 		return false
 	}
 
@@ -314,18 +325,20 @@ func (h *Hub) handleEnterWorld(ctx context.Context, st *connState, env *aet.Enve
 		Outbox:      st.outbox,
 	}
 	if err := h.sim.Spawn(p); err != nil {
-		h.send(st.conn, &aet.EnterWorldAck{Ok: false, Error: "already_in_world"})
+		h.enqueue(st, &aet.EnterWorldAck{Ok: false, Error: "already_in_world"})
 		return false
 	}
 	st.session = p
 	h.s.Log("info", "player entered world", "char_id", spawn.ID, "zone", spawn.ZoneID)
-	h.send(st.conn, &aet.EnterWorldAck{
+	h.enqueue(st, &aet.EnterWorldAck{
 		Ok:       true,
 		EntityId: p.ID,
 		ZoneId:   spawn.ZoneID,
 		Position: &aet.Vec3{X: float32(p.Pos.X), Y: float32(p.Pos.Y), Z: float32(p.Pos.Z)},
 		MaxSpeed: float32(maxSpeed),
 	})
+	// Ack is enqueued; unblock snapshot emission.
+	p.Ready.Store(true)
 	return false
 }
 

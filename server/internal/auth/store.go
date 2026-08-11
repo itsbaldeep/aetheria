@@ -123,7 +123,7 @@ func (s *Store) LoadCharacterSpawn(ctx context.Context, accountID, charID int64)
 	var x, y, z float64
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, name, class, zone_id, pos_x, pos_y, pos_z, level, hp,
-		        GREATEST(hp, 1) AS hp, stats->>'max_hp' AS max_hp
+		        COALESCE((stats->>'max_hp')::bigint, 100) AS max_hp
 		 FROM characters
 		 WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL`,
 		charID, accountID).Scan(&c.ID, &c.Name, &c.Class, &c.ZoneID, &x, &y, &z, &c.Level, &c.HP, &c.MaxHP)

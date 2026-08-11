@@ -4,6 +4,7 @@ package world
 
 import (
 	"math"
+	"sync/atomic"
 
 	aet "github.com/itsbaldeep/aetheria/server/gen"
 )
@@ -65,6 +66,10 @@ type Player struct {
 
 	// Outbox carries marshalled WorldSnapshot frames for this connection.
 	Outbox chan []byte
+
+	// Ready gates snapshot emission until the wire layer has enqueued the
+	// EnterWorldAck, so the ack is always the first frame after EnterWorld.
+	Ready atomic.Bool
 
 	// Owned by the sim goroutine:
 	known     map[uint64]*aet.EntityState

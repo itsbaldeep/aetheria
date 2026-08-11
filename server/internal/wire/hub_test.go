@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -311,13 +312,14 @@ func TestEnterWorldWrongAccount(t *testing.T) {
 
 // fakeValidator lets tests control handshake auth outcomes without a DB.
 type fakeValidator struct {
-	id    int64
-	err   error
-	calls int
+	id  int64
+	err error
+
+	calls atomic.Int64
 }
 
 func (f *fakeValidator) Validate(ctx context.Context, token string) (int64, error) {
-	f.calls++
+	f.calls.Add(1)
 	if f.err != nil {
 		return 0, f.err
 	}
@@ -383,8 +385,8 @@ func TestHandshakeValid(t *testing.T) {
 		t.Fatalf("dial: %v", err)
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "done")
-	if fv.calls != 1 {
-		t.Fatalf("validator calls = %d, want 1", fv.calls)
+	if got := fv.calls.Load(); got != 1 {
+		t.Fatalf("validator calls = %d, want 1", got)
 	}
 	_, data, err := conn.Read(ctx)
 	if err != nil {

@@ -30,7 +30,8 @@ func main() {
 	addr := flag.String("addr", "wss://play.aetheria.apps.deployden.tech/ws", "gameserver websocket URL")
 	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|roamer|grinder|quester|trader|partygoer|chaos)")
 	api := flag.String("api", "http://127.0.0.1:3016", "authserver base URL (http://host:port)")
-	n := flag.Int("n", 20, "count for batch profiles (register)")
+	n := flag.Int("n", 20, "count for batch profiles (register/roamer/chaos)")
+	duration := flag.Duration("duration", 10*time.Second, "duration for soak profiles (roamer/chaos)")
 	flag.Parse()
 
 	switch *profile {
@@ -44,10 +45,237 @@ func main() {
 		runCreateChar(*api)
 	case "full-auth":
 		runFullAuth(*addr, *api)
+	case "presence":
+		runPresence(*addr, *api)
+	case "roamer":
+		runRoamer(*addr, *api, *n, *duration)
+	case "chaos":
+		runChaos(*addr, *api, *n, *duration)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (M1 implements 'ping', 'register', 'login', 'create-char', 'full-auth')\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer chaos)\n", *profile)
 		os.Exit(2)
 	}
+}
+
+// runPresence is the M2 acceptance: two clients see each other's movement
+// with correct AOI (spawn → move → despawn).
+func runPresence(wsURL, apiURL string) {
+	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
+	defer cancel()
+
+	stamp := time.Now().UTC().Format("20060102T150405")
+	var tokens []string
+	var chars []int64
+	var names []string
+	for i := 1; i <= 2; i++ {
+		email := fmt.Sprintf("botpresence-%s-%d@aetheria.test", stamp, i)
+		if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
+			BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "pres-pass-21", BatchSize: 1,
+		}); err != nil {
+			fatal("seed %d: %v", i, err)
+		}
+		lg, err := scenarios.Login(apiURL, email, "pres-pass-21")
+		if err != nil || lg.Token == "" {
+			fatal("login %d: %v", i, err)
+		}
+		tokens = append(tokens, lg.Token)
+		name := fmt.Sprintf("Pres%d%s", i, stamp[len(stamp)-2:])
+		// Use a per-index unique name (both under different accounts so name
+		// conflicts impossible across runs thanks to the timestamp).
+		if st, body, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
+			fatal("create char %d: status=%d body=%s", i, st, body)
+		}
+		roster, st, err := scenarios.ListCharacters(apiURL, lg.Token)
+		if err != nil || st != 200 {
+			fatal("roster %d: %v", i, err)
+		}
+		if len(roster) != 1 {
+			fatal("roster %d len=%d", i, len(roster))
+		}
+		chars = append(chars, int64(roster[0]["id"].(float64)))
+		names = append(names, name)
+	}
+
+	res, err := scenarios.Presence(wsURL, tokens, chars, names, 60*time.Second)
+	if err != nil {
+		fatal("presence: %v", err)
+	}
+	fmt.Printf("presence OK: A saw B spawn=%v move=%v despawn=%v | B saw A spawn=%v move=%v despawn=%v\n",
+		res.ASawBSpawn, res.ASawBMove, res.ASawBDespawn,
+		res.BSawASpawn, res.BSawAMove, res.BSawADespawn)
+	if !res.ASawBSpawn || !res.BSawASpawn {
+		fatal("presence: mutual spawn missing")
+	}
+	if !res.ASawBMove || !res.BSawAMove {
+		fatal("presence: mutual movement missing")
+	}
+	if !res.ASawBDespawn || !res.BSawADespawn {
+		fatal("presence: mutual despawn missing")
+	}
+	fmt.Println("presence: ALL PASS — M2 acceptance met")
+	_ = ctx
+}
+
+// runRoamer connects N bots, enters the world, and roams random directions
+// for `duration`, exercising the 20 Hz snapshot stream under sustained load.
+// This is the loadtest/soak profile (brief §12.3 `roamer`).
+func runRoamer(wsURL, apiURL string, botCount int, duration time.Duration) {
+	if botCount <= 0 {
+		fatal("roamer: -n must be > 0")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), duration+120*time.Second)
+	defer cancel()
+
+	stamp := time.Now().UTC().Format("20060102T150405")
+	type botSet struct {
+		bot   *scenarios.WorldBot
+		email string
+	}
+	var bots []*botSet
+	for i := 1; i <= botCount; i++ {
+		email := fmt.Sprintf("botroam-%s-%d@aetheria.test", stamp, i)
+		if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
+			BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "roam-pass-12", BatchSize: 1,
+		}); err != nil {
+			fatal("seed %d: %v", i, err)
+		}
+		lg, err := scenarios.Login(apiURL, email, "roam-pass-12")
+		if err != nil || lg.Token == "" {
+			fatal("login %d: %v", i, err)
+		}
+		name := fmt.Sprintf("Roam%s%d", stamp[len(stamp)-4:], i)
+		if st, body, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
+			fatal("create char %d: status=%d body=%s", i, st, body)
+		}
+		roster, st, err := scenarios.ListCharacters(apiURL, lg.Token)
+		if err != nil || st != 200 || len(roster) != 1 {
+			fatal("roster %d: len=%d st=%d err=%v", i, len(roster), st, err)
+		}
+		charID := int64(roster[0]["id"].(float64))
+		bot, err := scenarios.ConnectWorld(ctx, wsURL, lg.Token, charID)
+		if err != nil {
+			fatal("connect %d: %v", i, err)
+		}
+		bots = append(bots, &botSet{bot: bot, email: email})
+		defer bot.Close()
+	}
+
+	// Roam: each tick-pick a random direction per bot, send intents, and
+	// consume snapshots. Track total snapshots seen + speed-hack attempts.
+	totalSnaps := 0
+	start := time.Now()
+	dirIdx := make([]int, botCount)
+	for time.Since(start) < duration {
+		for i, bs := range bots {
+			// Flip direction roughly every second.
+			if int(time.Since(start).Seconds())%2 != dirIdx[i] {
+				continue
+			}
+			dirs := [][2]float64{{1, 0}, {-1, 0}, {0, 1}, {0, -1}, {1, 1}, {-1, 1}}
+			d := dirs[i%len(dirs)]
+			if err := bs.bot.Move(ctx, d[0], d[1], bs.bot.MaxSpeed); err != nil {
+				fatal("roam move %d: %v", i, err)
+			}
+			dirIdx[i] = int(time.Since(start).Seconds()) % 2
+		}
+		// Consume one snapshot per bot per ~50ms.
+		for _, bs := range bots {
+			if bs.bot.ReadSnapshot(ctx) {
+				totalSnaps++
+			}
+		}
+	}
+	elapsed := time.Since(start)
+	fmt.Printf("roamer OK: %d bots roamed for %s, snapshots consumed=%d (%.0f/s)\n",
+		botCount, elapsed.Round(time.Millisecond), totalSnaps, float64(totalSnaps)/elapsed.Seconds())
+	for i, bs := range bots {
+		if bs.bot.SnapshotCount == 0 {
+			fatal("roamer: bot %d saw zero snapshots", i+1)
+		}
+	}
+	fmt.Println("roamer: ALL PASS — every bot streamed snapshots")
+}
+
+// runChaos is the mandatory fuzzer (brief §12.3): sends random valid+invalid
+// payloads and malformed bytes at the server and asserts it never crashes or
+// wedges. The server may (correctly) close a socket that sends unparsable
+// raw bytes; the assertion is that a fresh connection always works and a
+// ping round-trip succeeds.
+func runChaos(wsURL, apiURL string, n int, duration time.Duration) {
+	ctx, cancel := context.WithTimeout(context.Background(), duration+120*time.Second)
+	defer cancel()
+
+	stamp := time.Now().UTC().Format("20060102T150405")
+	email := fmt.Sprintf("botchaos-%s@aetheria.test", stamp)
+	if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
+		BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "chaos-pass-9", BatchSize: 1,
+	}); err != nil {
+		fatal("seed: %v", err)
+	}
+	lg, err := scenarios.Login(apiURL, email, "chaos-pass-9")
+	if err != nil || lg.Token == "" {
+		fatal("login: %v", err)
+	}
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, "Chaos"+stamp[len(stamp)-4:], ClassSpellweaver); st != 201 && st != 409 {
+		fatal("create char: %d", st)
+	}
+	roster, _, _ := scenarios.ListCharacters(apiURL, lg.Token)
+	if len(roster) != 1 {
+		fatal("chaos roster len=%d", len(roster))
+	}
+	charID := int64(roster[0]["id"].(float64))
+
+	rng := newChaosRNG()
+	start := time.Now()
+	sent := 0
+	closed := 0
+	for time.Since(start) < duration {
+		// Reconnect if the previous socket was closed (proves the server is
+		// still alive and accepting).
+		bot, err := scenarios.ConnectWorld(ctx, wsURL, lg.Token, charID)
+		if err != nil {
+			// A connect failure after a fuzz storm = server likely wedged.
+			if _, pingErr := scenarios.ConnectWorld(ctx, wsURL, lg.Token, charID); pingErr != nil {
+				fatal("chaos: server unresponsive after fuzzing: %v", pingErr)
+			}
+			continue
+		}
+		payload := rng.randomBytes(64)
+		var frame []byte
+		if rng.bool() {
+			env := &aet.Envelope{
+				Seq:         rng.uint64(),
+				Kind:        aet.Envelope_Kind(rng.intn(4)),
+				PayloadType: rng.payloadType(),
+				Payload:     payload,
+			}
+			frame = mustMarshal(env)
+		} else {
+			frame = payload // unparsable garbage
+		}
+		if err := bot.RawWrite(ctx, frame); err != nil {
+			closed++
+			bot.Close()
+			continue
+		}
+		bot.ReadSnapshot(ctx)
+		sent++
+		bot.Close()
+		_ = closed
+	}
+	// Final liveness: a fresh connection must accept, enter the world, and
+	// ping/pong.
+	final, err := scenarios.ConnectWorld(ctx, wsURL, lg.Token, charID)
+	if err != nil {
+		fatal("chaos: server dead after fuzzing: %v", err)
+	}
+	defer final.Close()
+	if _, err := final.PingRoundTrip(ctx); err != nil {
+		fatal("chaos: ping failed after fuzzing: %v", err)
+	}
+	fmt.Printf("chaos OK: %d frames sent over %s (%d sockets closed by server), fresh connection healthy\n",
+		sent, time.Since(start).Round(time.Millisecond), closed)
+	fmt.Println("chaos: ALL PASS — malformed input did not crash the server")
 }
 
 // runFullAuth is the M1 acceptance scenario (brief §11 M1): register → login
@@ -357,6 +585,47 @@ func runCreateChar(apiURL string) {
 
 const ClassBladeDancer = "blade_dancer"
 const ClassSpellweaver = "spellweaver"
+
+// chaosRNG is a small deterministic-ish fuzz source (crypto/rand seeded).
+type chaosRNG struct {
+	seed uint64
+}
+
+func newChaosRNG() *chaosRNG { return &chaosRNG{seed: uint64(time.Now().UnixNano())} }
+
+func (c *chaosRNG) next() uint64 {
+	// xorshift64
+	c.seed ^= c.seed << 13
+	c.seed ^= c.seed >> 7
+	c.seed ^= c.seed << 17
+	return c.seed
+}
+
+func (c *chaosRNG) bool() bool { return c.next()&1 == 1 }
+func (c *chaosRNG) intn(n int) int {
+	if n <= 0 {
+		return 0
+	}
+	return int(c.next() % uint64(n))
+}
+func (c *chaosRNG) uint64() uint64 { return c.next() }
+
+func (c *chaosRNG) randomBytes(n int) []byte {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = byte(c.next() >> (8 * (i % 8)))
+	}
+	return b
+}
+
+func (c *chaosRNG) payloadType() string {
+	types := []string{
+		"aetheria.Ping", "aetheria.MoveIntent", "aetheria.EnterWorld",
+		"aetheria.LeaveWorld", "aetheria.Nope", "", "aetheria.",
+		"aetheria.WorldSnapshot", "random.string", "aetheria.Pong",
+	}
+	return types[c.intn(len(types))]
+}
 
 func mustMarshal(m proto.Message) []byte {
 	b, err := proto.Marshal(m)

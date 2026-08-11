@@ -336,7 +336,7 @@ func (s *Sim) applyMove(p *Player) {
 
 // emitSnapshot computes the player's AOI delta and pushes a WorldSnapshot.
 func (s *Sim) emitSnapshot(p *Player) {
-	if p.Outbox == nil {
+	if p.Outbox == nil || !p.Ready.Load() {
 		return
 	}
 	near := s.grid.Nearby(p.Pos, p.ID)

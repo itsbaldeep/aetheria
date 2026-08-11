@@ -25,6 +25,7 @@ func spawnTestPlayer(s *Sim, charID int64, pos Vec3, maxSpeed float64) *Player {
 		MaxSpeed:    maxSpeed,
 		Outbox:      s.NewPlayerOutbox(),
 	}
+	p.Ready.Store(true)
 	if err := s.Spawn(p); err != nil {
 		panic(err)
 	}
