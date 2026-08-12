@@ -13,8 +13,10 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"flag"
 	"fmt"
+	"math/big"
 	"net/http"
 	"os"
 	"time"
@@ -202,7 +204,11 @@ func runRoamer(wsURL, apiURL string, botCount int, duration time.Duration) {
 // to Ashmaw and respawns at the shrine.
 func runCombat(wsURL, apiURL string) {
 	stamp := time.Now().UTC().Format("20060102T150405")
-	email := fmt.Sprintf("botcombat-%s@aetheria.test", stamp)
+	suffix := "000"
+	if b, err := rand.Int(rand.Reader, big.NewInt(1000)); err == nil {
+		suffix = fmt.Sprintf("%03d", b.Int64())
+	}
+	email := fmt.Sprintf("botcombat-%s-%s@aetheria.test", stamp, suffix)
 	seed := scenarios.RegisterConfig{BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "combat-pass-5", BatchSize: 1}
 	if _, err := scenarios.RegisterBatch(seed); err != nil {
 		fatal("seed: %v", err)
@@ -211,7 +217,7 @@ func runCombat(wsURL, apiURL string) {
 	if err != nil || lg.Token == "" {
 		fatal("login: %v", err)
 	}
-	name := "Combat" + stamp[len(stamp)-3:]
+	name := "Combat" + suffix
 	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
 		fatal("create char: status=%d", st)
 	}

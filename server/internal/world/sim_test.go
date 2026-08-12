@@ -2,6 +2,7 @@ package world
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -269,4 +270,37 @@ func TestWalkingOutOfTownTransitionsZone(t *testing.T) {
 		}
 	}
 	t.Fatal("player never left the town pocket")
+}
+
+// TestWorldClamp walks straight off the world edge; the player must stop at
+// the outermost boundary and never escape it.
+func TestWorldClamp(t *testing.T) {
+	s := New(Options{
+		Zones: []*Zone{
+			{ID: "havenport", Name: "Havenport", Safe: true, MinX: -50, MaxX: 50, MinZ: -50, MaxZ: 50},
+			{ID: "emberfield", Name: "Emberfield", MinX: -300, MaxX: 300, MinZ: -300, MaxZ: 300},
+		},
+		Tick: 50 * time.Millisecond,
+	})
+	p := spawnTestPlayer(s, 1, Vec3{290, 0, 0}, 8)
+	if err := s.SetMove(1, MoveIntent{Direction: Vec3{1, 0, 0}, Speed: 8}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		s.tickOnce(time.Now())
+		s.mu.Lock()
+		pos := p.Pos
+		s.mu.Unlock()
+		if pos.X > 300 {
+			t.Fatalf("player escaped the world at x=%.1f", pos.X)
+		}
+	}
+	// Settled at the edge, not frozen mid-field.
+	s.mu.Lock()
+	pos := p.Pos
+	s.mu.Unlock()
+	if math.Abs(pos.X-300) > 0.75 {
+		t.Fatalf("player resting at x=%.1f, want clamped to 300", pos.X)
+	}
 }

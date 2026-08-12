@@ -374,29 +374,55 @@ func (s *Sim) applyMove(p *Player) {
 		return
 	}
 
-	// Move, clamped to the world and then re-derived zone boundary.
+	// Move, clamped to the world and then re-derived zone boundary. Clamping
+	// uses the outermost bounds unconditionally, so a player can never walk
+	// off the world even if the new position leaves every zone.
 	newPos := p.Pos.Add(delta)
-	if z := s.zoneFor(newPos); z != nil {
-		if newPos.X < z.MinX {
-			newPos.X = z.MinX
-		}
-		if newPos.X > z.MaxX {
-			newPos.X = z.MaxX
-		}
-		if newPos.Z < z.MinZ {
-			newPos.Z = z.MinZ
-		}
-		if newPos.Z > z.MaxZ {
-			newPos.Z = z.MaxZ
-		}
-		if newZone := s.zoneFor(newPos); newZone != nil && newZone.ID != p.Zone {
-			s.log("info: zone transition char=%d %s -> %s", p.CharacterID, p.Zone, newZone.ID)
-			p.Zone = newZone.ID
-		}
+	if minX, maxX, minZ, maxZ, ok := s.worldBounds(); ok {
+		newPos.X = clamp(newPos.X, minX, maxX)
+		newPos.Z = clamp(newPos.Z, minZ, maxZ)
+	}
+	if newZone := s.zoneFor(newPos); newZone != nil && newZone.ID != p.Zone {
+		s.log("info: zone transition char=%d %s -> %s", p.CharacterID, p.Zone, newZone.ID)
+		p.Zone = newZone.ID
 	}
 	p.Pos = newPos
 	p.dirtySelf = true
 	s.grid.Refresh(&p.Entity)
+}
+
+// worldBounds returns the bounding box covering all zones (the world edge).
+func (s *Sim) worldBounds() (minX, maxX, minZ, maxZ float64, ok bool) {
+	for _, z := range s.zones {
+		if !ok {
+			minX, maxX, minZ, maxZ = z.MinX, z.MaxX, z.MinZ, z.MaxZ
+			ok = true
+			continue
+		}
+		if z.MinX < minX {
+			minX = z.MinX
+		}
+		if z.MaxX > maxX {
+			maxX = z.MaxX
+		}
+		if z.MinZ < minZ {
+			minZ = z.MinZ
+		}
+		if z.MaxZ > maxZ {
+			maxZ = z.MaxZ
+		}
+	}
+	return
+}
+
+func clamp(v, lo, hi float64) float64 {
+	if v < lo {
+		return lo
+	}
+	if v > hi {
+		return hi
+	}
+	return v
 }
 
 // zoneFor returns the zone containing a position. Bounds are concentric: the

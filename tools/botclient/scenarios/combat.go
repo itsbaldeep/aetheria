@@ -132,8 +132,10 @@ func Combat(wsURL, token string, charID int64, timeout time.Duration, dbg io.Wri
 			}
 		case "hunting":
 			if target == nil {
-				if err := b.Move(ctx, 1, 1, b.MaxSpeed); err != nil {
-					fmt.Fprintf(dbg, "ERR move(hunting-nil): %v\n", err)
+				// No hostile in AOI: orbit a band-1 spawn anchor (near town) so
+				// the bot re-scans mobs instead of drifting to a world corner.
+				if err := b.steer(ctx, 70, -60); err != nil {
+					fmt.Fprintf(dbg, "ERR steer(hunting-nil): %v\n", err)
 				}
 				break
 			}
