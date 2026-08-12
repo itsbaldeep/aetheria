@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"math"
+	"strings"
 	"time"
 
 	aet "github.com/itsbaldeep/aetheria/server/gen"
@@ -22,6 +23,8 @@ type CombatResult struct {
 	Respawned      bool
 	HPAfterRespawn int64
 	SnapshotCount  int
+	// NegativeHPSeen is set if any self snapshot reported HP < 0 (soak assertion).
+	NegativeHPSeen bool
 }
 
 // ashmawSpawn is the deterministic band-3 anchor the spawner lands near when
@@ -34,7 +37,7 @@ func Combat(wsURL, token string, charID int64, timeout time.Duration, dbg io.Wri
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	b, err := ConnectWorld(ctx, wsURL, token, charID)
+	b, err := connectWorldRetry(ctx, wsURL, token, charID)
 	if err != nil {
 		return nil, fmt.Errorf("scenarios: connect: %w", err)
 	}
@@ -59,6 +62,9 @@ func Combat(wsURL, token string, charID int64, timeout time.Duration, dbg io.Wri
 			return nil, fmt.Errorf("scenarios: disconnected in phase %s: %v", phase, err)
 		}
 		res.SnapshotCount++
+		if b.LastSelfHP < 0 {
+			res.NegativeHPSeen = true
+		}
 
 		{
 			ents := ""
@@ -178,6 +184,32 @@ func Combat(wsURL, token string, charID int64, timeout time.Duration, dbg io.Wri
 		fmt.Printf("combat OK: killed boar, gained %d XP\n", res.XPgained)
 	}
 	return res, nil
+}
+
+// connectWorldRetry connects, retrying on "already_in_world". When a previous
+// cycle's socket is still being reaped server-side, an immediate re-enter is
+// rejected; a brief retry rides out the teardown race.
+func connectWorldRetry(ctx context.Context, wsURL, token string, charID int64) (*WorldBot, error) {
+	var lastErr error
+	for attempt := 0; attempt < 5; attempt++ {
+		if attempt > 0 {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(500 * time.Millisecond):
+			}
+		}
+		b, err := ConnectWorld(ctx, wsURL, token, charID)
+		if err == nil {
+			return b, nil
+		}
+		lastErr = err
+		if strings.Contains(err.Error(), "already_in_world") {
+			continue
+		}
+		return nil, err
+	}
+	return nil, lastErr
 }
 
 // steer sends a MoveIntent aimed at a world position (direction unit vector).

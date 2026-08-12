@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"sort"
 	"sync"
 	"time"
 
@@ -82,6 +83,11 @@ type Sim struct {
 
 	// outboxBuffer is the per-player outbox channel capacity.
 	outboxBuffer int
+
+	// Tick stats (soak assertion): sample of recent tick durations.
+	tickSamples [512]time.Duration
+	tickNext    int
+	tickFilled  int
 }
 
 // Options configures the simulation.
@@ -153,8 +159,54 @@ func (s *Sim) Run(ctx context.Context) {
 		case <-ctx.Done():
 			return
 		case now := <-t.C:
+			start := time.Now()
 			s.tickOnce(now)
+			s.recordTick(time.Since(start))
 		}
+	}
+}
+
+// Stats returns measured world stats for health/soak checks.
+type Stats struct {
+	TickP50 time.Duration
+	TickP99 time.Duration
+}
+
+func (s *Sim) Stats() Stats {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	n := s.tickFilled
+	if n == 0 {
+		return Stats{}
+	}
+	values := make([]time.Duration, n)
+	for i := 0; i < n; i++ {
+		// Ring order doesn't matter for percentile sampling.
+		values[i] = s.tickSamples[i]
+	}
+	sort.Slice(values, func(i, j int) bool { return values[i] < values[j] })
+	return Stats{
+		TickP50: percentileDur(values, 0.50),
+		TickP99: percentileDur(values, 0.99),
+	}
+}
+
+func percentileDur(sorted []time.Duration, q float64) time.Duration {
+	i := int(float64(len(sorted))*q + 0.5)
+	if i >= len(sorted) {
+		i = len(sorted) - 1
+	}
+	if i < 0 {
+		i = 0
+	}
+	return sorted[i]
+}
+
+func (s *Sim) recordTick(d time.Duration) {
+	s.tickSamples[s.tickNext] = d
+	s.tickNext = (s.tickNext + 1) % len(s.tickSamples)
+	if s.tickFilled < len(s.tickSamples) {
+		s.tickFilled++
 	}
 }
 

@@ -69,11 +69,15 @@ bottest:
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile presence -duration 10s
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile roamer -n 5 -duration 12s
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile chaos -duration 5s
+	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile chat
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile combat
-	@echo "bottest: full-auth + presence + roamer + chaos + combat OK (M1 + M2 + M3 acceptance)"
+	@echo "bottest: full-auth + presence + roamer + chaos + chat + combat OK (M1 + M2 + M3 acceptance)"
 
 loadtest:
 	@echo "loadtest (M2+): spawn $(N) botclients for $(DURATION)"
+
+combat-soak: ## M3 acceptance soak: N bots combat for DURATION (asserts tick p99 < 50ms)
+	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -ctrl http://127.0.0.1:$(AETHERIA_CONTROL_PORT) -profile combat-soak -n $(N) -duration $(DURATION)
 
 questrun:
 	@echo "questrun (M5+): master regression playthrough"

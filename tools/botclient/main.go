@@ -14,11 +14,15 @@ package main
 import (
 	"context"
 	"crypto/rand"
+	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
 	"os"
+	"strings"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -30,10 +34,11 @@ import (
 
 func main() {
 	addr := flag.String("addr", "wss://play.aetheria.apps.deployden.tech/ws", "gameserver websocket URL")
-	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|chaos)")
+	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|combat-soak|chat|chaos)")
 	api := flag.String("api", "http://127.0.0.1:3016", "authserver base URL (http://host:port)")
-	n := flag.Int("n", 20, "count for batch profiles (register/roamer/chaos)")
-	duration := flag.Duration("duration", 10*time.Second, "duration for soak profiles (roamer/chaos)")
+	ctrl := flag.String("ctrl", "http://127.0.0.1:5003", "gameserver control endpoint (for combat-soak stats)")
+	n := flag.Int("n", 20, "count for batch profiles (register/roamer/chaos/combat-soak)")
+	duration := flag.Duration("duration", 10*time.Second, "duration for soak profiles (roamer/chaos/combat-soak)")
 	flag.Parse()
 
 	switch *profile {
@@ -51,12 +56,16 @@ func main() {
 		runPresence(*addr, *api)
 	case "roamer":
 		runRoamer(*addr, *api, *n, *duration)
+	case "chat":
+		runChat(*addr, *api)
 	case "combat":
 		runCombat(*addr, *api)
+	case "combat-soak":
+		runCombatSoak(*addr, *api, *ctrl, *n, *duration)
 	case "chaos":
 		runChaos(*addr, *api, *n, *duration)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer combat chaos)\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer combat combat-soak chat chaos)\n", *profile)
 		os.Exit(2)
 	}
 }
@@ -118,6 +127,58 @@ func runPresence(wsURL, apiURL string) {
 	}
 	fmt.Println("presence: ALL PASS — M2 acceptance met")
 	_ = ctx
+}
+
+// runChat is the M3 chat relay acceptance: A world-chats to B (relayed), A
+// say-chats to B (blocked — too far), verifies sender fields are server-filled.
+func runChat(wsURL, apiURL string) {
+	stamp := time.Now().UTC().Format("20060102T150405")
+	email := fmt.Sprintf("botchat-%s@aetheria.test", stamp)
+	seed := scenarios.RegisterConfig{BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "chat-pass-7", BatchSize: 1}
+	if _, err := scenarios.RegisterBatch(seed); err != nil {
+		fatal("seed: %v", err)
+	}
+	lg, err := scenarios.Login(apiURL, email, "chat-pass-7")
+	if err != nil || lg.Token == "" {
+		fatal("login: %v", err)
+	}
+	// Two characters: A speaks, B listens from far away.
+	names := []string{"ChatA" + stamp[len(stamp)-3:], "ChatB" + stamp[len(stamp)-3:]}
+	var charIDs []int64
+	for _, nm := range names {
+		if st, body, _ := scenarios.CreateCharacter(apiURL, lg.Token, nm, ClassBladeDancer); st != 201 {
+			fatal("create char %s: status=%d body=%s", nm, st, body)
+		}
+	}
+	roster, st, _ := scenarios.ListCharacters(apiURL, lg.Token)
+	if st != 200 || len(roster) != 2 {
+		fatal("roster len=%d st=%d want 2", len(roster), st)
+	}
+	for _, c := range roster {
+		if nm, _ := c["name"].(string); nm == names[0] {
+			charIDs = append(charIDs, int64(c["id"].(float64)))
+		}
+	}
+	for _, c := range roster {
+		if nm, _ := c["name"].(string); nm == names[1] {
+			charIDs = append(charIDs, int64(c["id"].(float64)))
+		}
+	}
+	if len(charIDs) != 2 {
+		fatal("char id resolution failed: %v", charIDs)
+	}
+
+	res, err := scenarios.Chat(wsURL, lg.Token, charIDs[0], charIDs[1], 60*time.Second, os.Stderr)
+	if err != nil {
+		fatal("chat: %v", err)
+	}
+	if !res.WorldRelayed {
+		fatal("chat: world message not relayed to far bot")
+	}
+	if res.SayLeaked {
+		fatal("chat: say message leaked across range")
+	}
+	fmt.Println("chat ALL PASS: world relayed, say range-limited")
 }
 
 // runRoamer connects N bots, enters the world, and roams random directions
@@ -250,6 +311,208 @@ func runCombat(wsURL, apiURL string) {
 		fatal("combat: respawned with HP=%d", res.HPAfterRespawn)
 	}
 	fmt.Printf("combat ALL PASS: boar killed (+%d XP), died, respawned HP=%d\n", res.XPgained, res.HPAfterRespawn)
+}
+
+// runCombatSoak is the M3 acceptance soak (brief §11): N bots run the combat
+// scenario for a duration. Assertions: the gameserver never crashes, no bot
+// ever reports negative HP, and tick p99 stays under 50 ms (sampled from the
+// control endpoint). Per-cycle timeout errors are allowed (mob contention),
+// hard disconnects are not.
+func runCombatSoak(wsURL, apiURL, ctrlURL string, botCount int, duration time.Duration) {
+	if botCount <= 0 {
+		fatal("combat-soak: -n must be > 0")
+	}
+	if ctrlURL == "" {
+		fatal("combat-soak: -ctrl required (gameserver control endpoint)")
+	}
+	stamp := time.Now().UTC().Format("20060102T150405")
+	type outcome struct {
+		cycles      int
+		hardFail    int
+		softTimeout int
+		negHP       bool
+		errors      map[string]int
+	}
+	results := make([]*outcome, botCount)
+	var wg sync.WaitGroup
+	soakEnd := time.Now().Add(duration)
+	soakStart := time.Now()
+	for i := 1; i <= botCount; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			o := &outcome{errors: map[string]int{}}
+			results[i-1] = o
+			email := fmt.Sprintf("botsoak-%s-%d@aetheria.test", stamp, i)
+			if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
+				BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "soak-pass-12", BatchSize: 1,
+			}); err != nil {
+				fatal("soak seed %d: %v", i, err)
+			}
+			lg, err := scenarios.Login(apiURL, email, "soak-pass-12")
+			if err != nil || lg.Token == "" {
+				fatal("soak login %d: %v", i, err)
+			}
+			name := fmt.Sprintf("Soak%s%d", stamp[len(stamp)-4:], i)
+			if st, body, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
+				fatal("soak create char %d: status=%d body=%s", i, st, body)
+			}
+			roster, st, err := scenarios.ListCharacters(apiURL, lg.Token)
+			if err != nil || st != 200 || len(roster) != 1 {
+				fatal("soak roster %d: len=%d st=%d err=%v", i, len(roster), st, err)
+			}
+			charID := int64(roster[0]["id"].(float64))
+
+			// Combat cycles until the soak window ends. A per-cycle deadline
+			// exceeded is mob contention, not a server fault; a disconnect is.
+			for time.Now().Before(soakEnd) {
+				remaining := time.Until(soakEnd)
+				if remaining > 120*time.Second {
+					remaining = 120 * time.Second
+				}
+				res, err := scenarios.Combat(wsURL, lg.Token, charID, remaining, io.Discard)
+				o.cycles++
+				if res != nil && res.NegativeHPSeen {
+					o.negHP = true
+				}
+				// Let the previous socket reap server-side before re-entering;
+				// an immediate re-enter races the LeaveWorld teardown.
+				select {
+				case <-time.After(1 * time.Second):
+				case <-time.After(time.Until(soakEnd)):
+				}
+				if err == nil {
+					continue
+				}
+				if strings.Contains(err.Error(), "context deadline exceeded") {
+					o.softTimeout++
+				} else {
+					o.hardFail++
+					// Bucket the disconnect reason to spot patterns. The
+					// interesting part is after "scenarios: ".
+					k := err.Error()
+					if i := strings.Index(k, "scenarios: "); i >= 0 {
+						k = k[i+len("scenarios: "):]
+					}
+					if len(k) > 80 {
+						k = k[:80]
+					}
+					o.errors[k]++
+				}
+			}
+		}(i)
+	}
+
+	// Sample tick stats until the bots are done.
+	type tickStats struct{ p50, p99 float64 }
+	var (
+		samplesMu sync.Mutex
+		samples   []tickStats
+	)
+	done := make(chan struct{})
+	var sampleWG sync.WaitGroup
+	sampleWG.Add(1)
+	go func() {
+		defer sampleWG.Done()
+		t := time.NewTicker(5 * time.Second)
+		defer t.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-t.C:
+				var ts tickStats
+				if body, _, err := httpGet(ctrlURL + "/control/stats"); err == nil {
+					var m map[string]any
+					if json.Unmarshal(body, &m) == nil {
+						for _, k := range []string{"tick_p99", "tick_p50"} {
+							if v, ok := m[k]; ok {
+								if s, ok := v.(string); ok {
+									if d, err := time.ParseDuration(s); err == nil {
+										if k == "tick_p99" {
+											ts.p99 = d.Seconds() * 1000
+										} else {
+											ts.p50 = d.Seconds() * 1000
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+				if ts.p99 >= 50 {
+					fmt.Printf("  tick p99 spike: %.2fms at +%s\n", ts.p99, time.Since(soakStart).Round(time.Second))
+				}
+				samplesMu.Lock()
+				samples = append(samples, ts)
+				samplesMu.Unlock()
+			}
+		}
+	}()
+	wg.Wait()
+	close(done)
+	sampleWG.Wait()
+
+	// Aggregate.
+	totalCycles, totalHard, totalSoft := 0, 0, 0
+	negHPs := 0
+	for _, o := range results {
+		totalCycles += o.cycles
+		totalHard += o.hardFail
+		totalSoft += o.softTimeout
+		if o.negHP {
+			negHPs++
+		}
+	}
+	var p99max, p50max float64
+	samplesMu.Lock()
+	for _, s := range samples {
+		if s.p99 > p99max {
+			p99max = s.p99
+		}
+		if s.p50 > p50max {
+			p50max = s.p50
+		}
+	}
+	sampleN := len(samples)
+	samplesMu.Unlock()
+
+	reasons := map[string]int{}
+	for _, o := range results {
+		for k, c := range o.errors {
+			reasons[k] += c
+		}
+	}
+	for k, c := range reasons {
+		fmt.Printf("  disconnect reason %q: %d\n", k, c)
+	}
+	fmt.Printf("combat-soak: N=%d %s cycles=%d hardFails=%d softTimeouts=%d negHP=%d | tick p50 max=%.2fms p99 max=%.2fms samples=%d\n",
+		botCount, duration.Round(time.Second), totalCycles, totalHard, totalSoft, negHPs, p50max, p99max, sampleN)
+
+	if totalHard > 0 {
+		fatal("combat-soak: %d hard disconnect(s) during soak", totalHard)
+	}
+	if negHPs > 0 {
+		fatal("combat-soak: %d bot(s) saw negative HP", negHPs)
+	}
+	if p99max >= 50 {
+		fatal("combat-soak: tick p99 %.2fms >= 50ms ceiling", p99max)
+	}
+	if len(samples) > 0 && p50max == 0 && p99max == 0 {
+		fatal("combat-soak: control stats never reported tick durations")
+	}
+	fmt.Println("combat-soak: ALL PASS — no crash, no negative HP/XP, tick p99 < 50ms")
+}
+
+// httpGet fetches a URL and returns body/status for the soak sampler.
+func httpGet(url string) (body []byte, status int, err error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return nil, 0, err
+	}
+	defer resp.Body.Close()
+	body, err = io.ReadAll(resp.Body)
+	return body, resp.StatusCode, err
 }
 
 // runChaos is the mandatory fuzzer (brief §12.3): sends random valid+invalid

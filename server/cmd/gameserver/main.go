@@ -98,6 +98,14 @@ func main() {
 	ctrlMux.HandleFunc("/control/ccu", func(w http.ResponseWriter, r *http.Request) {
 		platform.JSON(w, http.StatusOK, map[string]any{"ccu": sim.PlayerCount()})
 	})
+	ctrlMux.HandleFunc("/control/stats", func(w http.ResponseWriter, r *http.Request) {
+		st := sim.Stats()
+		platform.JSON(w, http.StatusOK, map[string]any{
+			"ccu":      sim.PlayerCount(),
+			"tick_p50": st.TickP50.String(),
+			"tick_p99": st.TickP99.String(),
+		})
+	})
 	ctrlMux.HandleFunc("/control/ping", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("pong"))
 	})

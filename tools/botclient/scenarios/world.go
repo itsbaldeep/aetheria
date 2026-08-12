@@ -8,6 +8,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/coder/websocket"
@@ -18,7 +19,12 @@ import (
 
 // WorldBot is an authenticated gameserver connection in the world.
 type WorldBot struct {
-	conn     *websocket.Conn
+	conn *websocket.Conn
+	// writeMu serializes all outbound frames: a websocket allows a single
+	// concurrent writer, and the combat scenario writes from both the main
+	// loop and the heartbeat goroutine.
+	writeMu sync.Mutex
+
 	EntityID uint64
 	ZoneID   string
 	PosX     float64
@@ -108,6 +114,14 @@ func ConnectWorld(ctx context.Context, wsURL, token string, charID int64) (*Worl
 	return b, nil
 }
 
+// write serializes a frame onto the socket. All outbound frames go through
+// this so the heartbeat goroutine and the main loop never write concurrently.
+func (b *WorldBot) write(ctx context.Context, env *aet.Envelope) error {
+	b.writeMu.Lock()
+	defer b.writeMu.Unlock()
+	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(env))
+}
+
 // Move sends a MoveIntent (direction + speed). Speed is clamped server-side.
 func (b *WorldBot) Move(ctx context.Context, dirX, dirZ, speed float64) error {
 	b.seq++
@@ -120,7 +134,7 @@ func (b *WorldBot) Move(ctx context.Context, dirX, dirZ, speed float64) error {
 			Speed:     float32(speed),
 		}),
 	}
-	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(mv))
+	return b.write(ctx, mv)
 }
 
 // Stop sends an empty MoveIntent (server interprets as stop).
@@ -132,7 +146,7 @@ func (b *WorldBot) Stop(ctx context.Context) error {
 		PayloadType: "aetheria.MoveIntent",
 		Payload:     mustMarshal(&aet.MoveIntent{}),
 	}
-	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(mv))
+	return b.write(ctx, mv)
 }
 
 // AutoAttack sets or clears auto-attack on a target entity.
@@ -144,7 +158,7 @@ func (b *WorldBot) AutoAttack(ctx context.Context, target uint64, active bool) e
 		PayloadType: "aetheria.AutoAttack",
 		Payload:     mustMarshal(&aet.AutoAttack{TargetEntityId: target, Active: active}),
 	}
-	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(aa))
+	return b.write(ctx, aa)
 }
 
 // Cast sends a CastSkill request. AimPos is optional (aimed/pbaoe kinds).
@@ -156,7 +170,7 @@ func (b *WorldBot) Cast(ctx context.Context, skillID string, target uint64, aim 
 		PayloadType: "aetheria.CastSkill",
 		Payload:     mustMarshal(&aet.CastSkill{SkillId: skillID, TargetEntityId: target, AimPosition: aim}),
 	}
-	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(cs))
+	return b.write(ctx, cs)
 }
 
 // SendChat sends a chat message on a channel (say|world). Server fills sender.
@@ -168,7 +182,7 @@ func (b *WorldBot) SendChat(ctx context.Context, channel, text string) error {
 		PayloadType: "aetheria.ChatMessage",
 		Payload:     mustMarshal(&aet.ChatMessage{Channel: channel, Text: text}),
 	}
-	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(cm))
+	return b.write(ctx, cm)
 }
 
 // Respawn sends a RespawnRequest after death.
@@ -180,7 +194,7 @@ func (b *WorldBot) Respawn(ctx context.Context) error {
 		PayloadType: "aetheria.RespawnRequest",
 		Payload:     mustMarshal(&aet.RespawnRequest{}),
 	}
-	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(rq))
+	return b.write(ctx, rq)
 }
 
 // KeepAlive sends a Ping (fire-and-forget; its Pong is drained by the next
@@ -194,7 +208,7 @@ func (b *WorldBot) KeepAlive(ctx context.Context) error {
 		PayloadType: "aetheria.Ping",
 		Payload:     mustMarshal(&aet.Ping{SentAtUnixMs: time.Now().UnixMilli()}),
 	}
-	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(p))
+	return b.write(ctx, p)
 }
 
 // StartHeartbeat runs KeepAlive on a background ticker until ctx is done,
@@ -344,7 +358,7 @@ func (b *WorldBot) PingRoundTrip(ctx context.Context) (int64, error) {
 		PayloadType: "aetheria.Ping",
 		Payload:     mustMarshal(&aet.Ping{SentAtUnixMs: sent}),
 	}
-	if err := b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(ping)); err != nil {
+	if err := b.write(ctx, ping); err != nil {
 		return 0, err
 	}
 	for {
@@ -383,12 +397,14 @@ func (b *WorldBot) Close() {
 		Kind:        aet.Envelope_KIND_REQUEST,
 		PayloadType: "aetheria.LeaveWorld",
 	}
-	_ = b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(lw))
+	_ = b.write(ctx, lw)
 	b.conn.Close(websocket.StatusNormalClosure, "done")
 }
 
 // RawWrite writes a raw frame (for the chaos fuzzer).
 func (b *WorldBot) RawWrite(ctx context.Context, frame []byte) error {
+	b.writeMu.Lock()
+	defer b.writeMu.Unlock()
 	return b.conn.Write(ctx, websocket.MessageBinary, frame)
 }
 
