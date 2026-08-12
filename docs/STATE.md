@@ -8,6 +8,12 @@ Update at the end of every work block. Read at the start of every session.
 ## Milestone checklists
 
 ### M3 — Chat & social (current)
+- [x] M3 combat-core acceptance verified live — DONE: tagged m3-complete.
+      Combat bot scenario (kill boar +12 XP → pull Ashmaw → die → respawn
+      HP=100) ALL PASS over local ws and public wss; make bottest full suite
+      green (full-auth + presence + roamer + chaos + combat). Remaining M3
+      combat sub-tasks (loot/gold/level-up) and M3 chat/social list still
+      open — flagged in Next action.
 - [x] combat core + mobs + bot combat scenario — DONE: mob defs (10), bands
       1–3 (town → deep field), skills (15 incl. blade_strike/mob_bite/gore),
       aggro/leash, XP + death + respawn at shrine; live bot scenario kills a
