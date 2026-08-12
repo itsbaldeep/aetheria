@@ -8,7 +8,16 @@ Update at the end of every work block. Read at the start of every session.
 ## Milestone checklists
 
 ### M3 — Chat & social (current)
-- [ ] (plan after reading brief §11 + FEEDBACK/HUMAN_TODO)
+- [x] combat core + mobs + bot combat scenario — DONE: mob defs (10), bands
+      1–3 (town → deep field), skills (15 incl. blade_strike/mob_bite/gore),
+      aggro/leash, XP + death + respawn at shrine; live bot scenario kills a
+      boar (+12 XP) → pulls Ashmaw → dies → respawns HP=100. Unit tests + bot
+      ALL PASS. `make bottest` now runs combat profile. (Planned M3 chat/social
+      list still TBD — combat landed first per brief §11.)
+- [x] zone bounds position-derived — DONE: havenport = 50×50 safe pocket
+      inside emberfield 600×600; walking out transitions zone
+      (TestWalkingOutOfTownTransitionsZone). Deterministic spawn placement
+      (sorted-def order).
 
 ### M2 — World presence & movement ✅ m2-complete (tag)
 - [x] M2 proto messages + Go/GDScript codegen + docs/protocol — DONE:
@@ -80,14 +89,28 @@ Update at the end of every work block. Read at the start of every session.
 ## Blockers
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M2.)
 ## Next action
-Read brief §11 M3 scope + docs/BRIEF.md chat/combat sections and FEEDBACK.md;
-plan M3 sub-tasks. Likely: world chat proto (ChatMessage/channel join), wire
-dispatch, hub relay + broadcast, bot chat scenario, client chat HUD.
+M3 chat & social (world chat / channels / presence list per brief §11), then
+client chat HUD + bot chat scenario. M3's combat core landed first (boar
+kill/XP/death/respawn verified live by the bot). Confirm remaining M3 combat
+sub-tasks (e.g. loot/gold/xp-to-level) vs brief when we return.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-12: M3 combat core live-verified. Root-caused combat-bot disconnects
+  (EOF after 1 frame): server's receive loop idles the socket after 10 s of no
+  inbound frames, and the sim only emits a snapshot on state change — so an
+  idle/stopped bot blocked in ReadSnapshot with nothing to say. Fixed by
+  WorldBot.StartHeartbeat (concurrent Ping every 4 s) + steering on the same
+  loop pass a target is detected (a state change is needed to emit the next
+  frame). Second issue: bot stopped at 14 m from Ashmaw but its aggro radius
+  is 12 m → it stood forever outside range; lowered stop threshold to 8 m.
+  Zone model switched to position-derived concentric bounds (havenport 50²
+  pocket inside emberfield 600²) with TestWalkingOutOfTownTransitionsZone;
+  SpawnMobs sorted-def order for deterministic placement; removed temp sim
+  debug logs. Live bot scenario: kill boar (+12 XP) → pull Ashmaw → die →
+  respawn HP=100. make bottest now runs combat (full suite green); committed.
 - 2026-08-11: M2 complete + tagged m2-complete. Root-caused the chaos-EOF:
   Pong is a raw proto on the wire (M1), bot wrongly expected an Envelope; all
   outgoing server frames now flow through the single-writer outbox (fixed a
