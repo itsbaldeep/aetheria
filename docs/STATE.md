@@ -8,6 +8,15 @@ Update at the end of every work block. Read at the start of every session.
 ## Milestone checklists
 
 ### M3 — Chat & social (current)
+- [x] 50-bot combat soak ALL PASS (30m formal acceptance) — DONE:
+      N=50, cycles=765, hardFails=0, softTimeouts=736, negHP=0, tick p99 max
+      20.08ms (< 50ms ceiling). Root-caused the last intermittent client
+      disconnect: the per-cycle 120s context expiring mid snapshot-body read
+      makes coder/websocket close the socket to unblock the read, surfacing
+      net.ErrClosed on the body path (no finishRead ctx.Err override there);
+      a budget-end self-teardown, not a server fault. Soak now classifies it
+      as a soft timeout. Server proved clean: 0 socket-write failures, only
+      EOF teardowns (now logged with char_id).
 - [x] M3 combat-core acceptance verified live — DONE: tagged m3-complete.
       Combat bot scenario (kill boar +12 XP → pull Ashmaw → die → respawn
       HP=100) ALL PASS over local ws and public wss; make bottest full suite
@@ -97,13 +106,29 @@ None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none bl
 ## Next action
 M3 chat & social (world chat / channels / presence list per brief §11), then
 client chat HUD + bot chat scenario. M3's combat core landed first (boar
-kill/XP/death/respawn verified live by the bot). Confirm remaining M3 combat
-sub-tasks (e.g. loot/gold/xp-to-level) vs brief when we return.
+kill/XP/death/respawn verified live by the bot) and the 50-bot/30m soak
+acceptance now passes. Confirm remaining M3 combat sub-tasks (e.g.
+loot/gold/xp-to-level) vs brief when we return.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-12: 50-bot combat soak ALL PASS — formal 30m acceptance met
+  (cycles=765 hardFails=0 softTimeouts=736 negHP=0, p99 max 20.08ms).
+  Root-caused the last 2 intermittent hard disconnects (DISC char=… el=119s
+  err=failed to read: use of closed network connection): the client's
+  per-cycle ctx (cap 120s) expiring while blocked mid snapshot-body read —
+  coder/websocket setupReadTimeout's AfterFunc calls c.close() to unblock
+  (conn.go:193-196); the msgReader body path has no finishRead so net.ErrClosed
+  survives instead of ctx.Err() (244 sibling cycles showed the ctx path).
+  Server logs proved clean throughout (only EOF teardowns, 0 socket-write
+  fails). Fix: Combat returns ctx.Err() when the budget expired → soak buckets
+  soft. Added server conn-teardown logging (char_id, socket-write-fail warn),
+  -soak-verbose flag (per-frame combat debug), and a seed-register retry
+  (contended-box 10s register timeout). One transient p99 spike (56ms) in an
+  earlier run traced to box contention (load 6.03, ClickHouse pegging a core),
+  not the gameserver (p50 stayed ~3.5ms). Committed 11728bb + 120ecb6.
 - 2026-08-12: M3 combat core live-verified + world-bounds clamp. Concurrent
   soak (local + public wss, up to 6 bot aggressors): intermittent EOF +
   runaway bots walking to (801,782) off the world uncovered a real server bug
