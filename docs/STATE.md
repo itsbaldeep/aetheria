@@ -98,19 +98,21 @@ sub-tasks (e.g. loot/gold/xp-to-level) vs brief when we return.
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
-- 2026-08-12: M3 combat core live-verified. Root-caused combat-bot disconnects
-  (EOF after 1 frame): server's receive loop idles the socket after 10 s of no
-  inbound frames, and the sim only emits a snapshot on state change — so an
-  idle/stopped bot blocked in ReadSnapshot with nothing to say. Fixed by
-  WorldBot.StartHeartbeat (concurrent Ping every 4 s) + steering on the same
-  loop pass a target is detected (a state change is needed to emit the next
-  frame). Second issue: bot stopped at 14 m from Ashmaw but its aggro radius
-  is 12 m → it stood forever outside range; lowered stop threshold to 8 m.
-  Zone model switched to position-derived concentric bounds (havenport 50²
-  pocket inside emberfield 600²) with TestWalkingOutOfTownTransitionsZone;
-  SpawnMobs sorted-def order for deterministic placement; removed temp sim
-  debug logs. Live bot scenario: kill boar (+12 XP) → pull Ashmaw → die →
-  respawn HP=100. make bottest now runs combat (full suite green); committed.
+- 2026-08-12: M3 combat core live-verified + world-bounds clamp. Concurrent
+  soak (local + public wss, up to 6 bot aggressors): intermittent EOF +
+  runaway bots walking to (801,782) off the world uncovered a real server bug
+  — applyMove only clamped when the target position was inside a zone, so a
+  straight walking bot could leave all zones and escape unbounded. Fixed:
+  always clamp to outermost bounds (TestWorldClamp); leftover failures after
+  the fix are pure resource contention (4 band-1 mobs / 30 s respawn for 6
+  hunters → scenario timeout, not server drops). Hunting with no hostile now
+  orbits the nearest spawn anchor instead of drifting; concurrent runCombat
+  names/emails get random suffix (no more same-second 409). Root-caused
+  combat-EOF earlier in block: server idles socket after 10 s no-inbound
+  frames, sim emits snapshots only on change → idle bot blocks in
+  ReadSnapshot; fixed with concurrent StartHeartbeat (4 s ping). Ashmaw stop
+  threshold lowered 14→8 m to sit inside its 12 m aggro radius. make bottest
+  runs combat profile (full suite green 4/4). Committed; m3-complete tag next.
 - 2026-08-11: M2 complete + tagged m2-complete. Root-caused the chaos-EOF:
   Pong is a raw proto on the wire (M1), bot wrongly expected an Envelope; all
   outgoing server frames now flow through the single-writer outbox (fixed a
