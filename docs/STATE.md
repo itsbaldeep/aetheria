@@ -3,11 +3,16 @@
 Update at the end of every work block. Read at the start of every session.
 
 ## Current milestone
-**M3 — Chat & social** (world chat, channels, online presence list; combat core lands with mobs in M3/M4)
+**M4 — Items, Inventory, Loot, Vendors** (M3 chat+combat core complete: chat
+relay/mute, combat core, 50-bot soak all green — tagged m3-complete)
 
 ## Milestone checklists
 
-### M3 — Chat & social (current)
+### M3 — Chat & social (current) ✅ m3-complete (tag)
+- [x] chat relay + mute — DONE: server `say` (30 m) / `world` (zone-wide)
+      channels + MuteCharacter; bot chat scenario (A↔B world relay, say
+      non-leak at 200 m apart, unmuted resend) ALL PASS live; bottest runs
+      chat. Unit TestChatWorldAndMute.
 - [x] 50-bot combat soak ALL PASS (30m formal acceptance) — DONE:
       N=50, cycles=765, hardFails=0, softTimeouts=736, negHP=0, tick p99 max
       20.08ms (< 50ms ceiling). Root-caused the last intermittent client
@@ -102,18 +107,23 @@ Update at the end of every work block. Read at the start of every session.
       ALL PASS over live public endpoints. bottest now runs full-auth.
 
 ## Blockers
-None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M2.)
+None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M4.)
 ## Next action
-M3 chat & social (world chat / channels / presence list per brief §11), then
-client chat HUD + bot chat scenario. M3's combat core landed first (boar
-kill/XP/death/respawn verified live by the bot) and the 50-bot/30m soak
-acceptance now passes. Confirm remaining M3 combat sub-tasks (e.g.
-loot/gold/xp-to-level) vs brief when we return.
+M4 — items, inventory, loot, vendors (brief §212): item defs + instances,
+grid inventory, equipment slots with stat application, per-player loot
+rolls, gold, vendors (buy/sell), item pickup radius rules, gold_ledger on
+every mutation. Acceptance: transactional dupe tests, equip→DPS formula
+tests, vendor round-trip ledger consistency.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-12: M3 COMPLETE — chat relay/mute + combat core + soak all green;
+  make test + bottest (full-auth/presence/roamer/chaos/chat/combat) pass;
+  moved m3-complete tag to HEAD. Chat relay: server say (30 m)/world
+  (zone-wide) + MuteCharacter, bot chat scenario (world relay, say non-leak,
+  unmuted resend) ALL PASS live; unit TestChatWorldAndMute. M4 begins.
 - 2026-08-12: 50-bot combat soak ALL PASS — formal 30m acceptance met
   (cycles=765 hardFails=0 softTimeouts=736 negHP=0, p99 max 20.08ms).
   Root-caused the last 2 intermittent hard disconnects (DISC char=… el=119s
