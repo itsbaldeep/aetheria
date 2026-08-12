@@ -1,0 +1,8 @@
+{
+  "id": "havenport",
+  "name": "Havenport",
+  "safe": true,
+  "size_x": 300,
+  "size_z": 300,
+  "shrine": { "x": 0, "y": 0, "z": 0 }
+}

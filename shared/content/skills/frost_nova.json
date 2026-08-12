@@ -1,0 +1,12 @@
+{
+  "id": "frost_nova",
+  "name": "Frost Nova",
+  "class": "spellweaver",
+  "rank": 1,
+  "kind": "pbaoe",
+  "range": 0,
+  "radius": 8,
+  "cooldown_ms": 10000,
+  "cost_mp": 12,
+  "power": 12
+}

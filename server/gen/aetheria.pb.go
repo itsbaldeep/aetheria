@@ -921,6 +921,406 @@ func (*LeaveWorld) Descriptor() ([]byte, []int) {
 	return file_aetheria_proto_rawDescGZIP(), []int{11}
 }
 
+// Client → server: request to cast one skill. `skill_id` must be a valid skill
+// for the character's class. tabtarget kinds require `target_entity_id`; aimed
+// kinds (ground-AoE) require `aim_position`; pbaoe/self ignore target.
+type CastSkill struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	SkillId        string                 `protobuf:"bytes,1,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	TargetEntityId uint64                 `protobuf:"varint,2,opt,name=target_entity_id,json=targetEntityId,proto3" json:"target_entity_id,omitempty"`
+	AimPosition    *Vec3                  `protobuf:"bytes,3,opt,name=aim_position,json=aimPosition,proto3" json:"aim_position,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *CastSkill) Reset() {
+	*x = CastSkill{}
+	mi := &file_aetheria_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CastSkill) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CastSkill) ProtoMessage() {}
+
+func (x *CastSkill) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CastSkill.ProtoReflect.Descriptor instead.
+func (*CastSkill) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{12}
+}
+
+func (x *CastSkill) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+func (x *CastSkill) GetTargetEntityId() uint64 {
+	if x != nil {
+		return x.TargetEntityId
+	}
+	return 0
+}
+
+func (x *CastSkill) GetAimPosition() *Vec3 {
+	if x != nil {
+		return x.AimPosition
+	}
+	return nil
+}
+
+// Client → server: set or clear auto-attack on a target. `active=false` (or
+// target 0) clears it. Auto-attack repeats the class's `auto` skill while the
+// target is alive and in range; the server validates it like any cast.
+type AutoAttack struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	TargetEntityId uint64                 `protobuf:"varint,1,opt,name=target_entity_id,json=targetEntityId,proto3" json:"target_entity_id,omitempty"`
+	Active         bool                   `protobuf:"varint,2,opt,name=active,proto3" json:"active,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AutoAttack) Reset() {
+	*x = AutoAttack{}
+	mi := &file_aetheria_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AutoAttack) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AutoAttack) ProtoMessage() {}
+
+func (x *AutoAttack) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use AutoAttack.ProtoReflect.Descriptor instead.
+func (*AutoAttack) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{13}
+}
+
+func (x *AutoAttack) GetTargetEntityId() uint64 {
+	if x != nil {
+		return x.TargetEntityId
+	}
+	return 0
+}
+
+func (x *AutoAttack) GetActive() bool {
+	if x != nil {
+		return x.Active
+	}
+	return false
+}
+
+// Server → client: a combat/chat-log event. Every noteworthy combat moment
+// emits one of these to the players who can see it (attacker, target, and AOI
+// witnesses). `event_type` one of: hit, crit, miss, kill, death, xp, level_up,
+// respawn, shield, heal.
+type CombatEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	EventType     string                 `protobuf:"bytes,1,opt,name=event_type,json=eventType,proto3" json:"event_type,omitempty"`
+	SourceId      uint64                 `protobuf:"varint,2,opt,name=source_id,json=sourceId,proto3" json:"source_id,omitempty"`
+	TargetId      uint64                 `protobuf:"varint,3,opt,name=target_id,json=targetId,proto3" json:"target_id,omitempty"`
+	SkillId       string                 `protobuf:"bytes,4,opt,name=skill_id,json=skillId,proto3" json:"skill_id,omitempty"`
+	Amount        int64                  `protobuf:"varint,5,opt,name=amount,proto3" json:"amount,omitempty"`                     // damage/xp amount as relevant
+	Message       string                 `protobuf:"bytes,6,opt,name=message,proto3" json:"message,omitempty"`                    // human-readable combat log line
+	NewLevel      int32                  `protobuf:"varint,7,opt,name=new_level,json=newLevel,proto3" json:"new_level,omitempty"` // set on level_up
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CombatEvent) Reset() {
+	*x = CombatEvent{}
+	mi := &file_aetheria_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CombatEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CombatEvent) ProtoMessage() {}
+
+func (x *CombatEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use CombatEvent.ProtoReflect.Descriptor instead.
+func (*CombatEvent) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{14}
+}
+
+func (x *CombatEvent) GetEventType() string {
+	if x != nil {
+		return x.EventType
+	}
+	return ""
+}
+
+func (x *CombatEvent) GetSourceId() uint64 {
+	if x != nil {
+		return x.SourceId
+	}
+	return 0
+}
+
+func (x *CombatEvent) GetTargetId() uint64 {
+	if x != nil {
+		return x.TargetId
+	}
+	return 0
+}
+
+func (x *CombatEvent) GetSkillId() string {
+	if x != nil {
+		return x.SkillId
+	}
+	return ""
+}
+
+func (x *CombatEvent) GetAmount() int64 {
+	if x != nil {
+		return x.Amount
+	}
+	return 0
+}
+
+func (x *CombatEvent) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *CombatEvent) GetNewLevel() int32 {
+	if x != nil {
+		return x.NewLevel
+	}
+	return 0
+}
+
+// Client → server: send a chat message on a channel. Server fills sender
+// fields, rate-limits, and relays per channel rules. Channels: say (nearby),
+// world (zone-wide).
+type ChatMessage struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Channel       string                 `protobuf:"bytes,1,opt,name=channel,proto3" json:"channel,omitempty"`
+	Text          string                 `protobuf:"bytes,2,opt,name=text,proto3" json:"text,omitempty"`
+	SenderId      uint64                 `protobuf:"varint,3,opt,name=sender_id,json=senderId,proto3" json:"sender_id,omitempty"`                 // server-filled on relay
+	SenderName    string                 `protobuf:"bytes,4,opt,name=sender_name,json=senderName,proto3" json:"sender_name,omitempty"`            // server-filled on relay
+	SentAtUnixMs  int64                  `protobuf:"varint,5,opt,name=sent_at_unix_ms,json=sentAtUnixMs,proto3" json:"sent_at_unix_ms,omitempty"` // server-filled on relay
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *ChatMessage) Reset() {
+	*x = ChatMessage{}
+	mi := &file_aetheria_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ChatMessage) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ChatMessage) ProtoMessage() {}
+
+func (x *ChatMessage) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use ChatMessage.ProtoReflect.Descriptor instead.
+func (*ChatMessage) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{15}
+}
+
+func (x *ChatMessage) GetChannel() string {
+	if x != nil {
+		return x.Channel
+	}
+	return ""
+}
+
+func (x *ChatMessage) GetText() string {
+	if x != nil {
+		return x.Text
+	}
+	return ""
+}
+
+func (x *ChatMessage) GetSenderId() uint64 {
+	if x != nil {
+		return x.SenderId
+	}
+	return 0
+}
+
+func (x *ChatMessage) GetSenderName() string {
+	if x != nil {
+		return x.SenderName
+	}
+	return ""
+}
+
+func (x *ChatMessage) GetSentAtUnixMs() int64 {
+	if x != nil {
+		return x.SentAtUnixMs
+	}
+	return 0
+}
+
+// Client → server: request respawn after death. Server moves the character to
+// its zone's shrine, restores HP/MP, and replies RespawnAck.
+type RespawnRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RespawnRequest) Reset() {
+	*x = RespawnRequest{}
+	mi := &file_aetheria_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RespawnRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RespawnRequest) ProtoMessage() {}
+
+func (x *RespawnRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RespawnRequest.ProtoReflect.Descriptor instead.
+func (*RespawnRequest) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{16}
+}
+
+// Server → client: result of RespawnRequest.
+type RespawnAck struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	ZoneId        string                 `protobuf:"bytes,3,opt,name=zone_id,json=zoneId,proto3" json:"zone_id,omitempty"`
+	Position      *Vec3                  `protobuf:"bytes,4,opt,name=position,proto3" json:"position,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *RespawnAck) Reset() {
+	*x = RespawnAck{}
+	mi := &file_aetheria_proto_msgTypes[17]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *RespawnAck) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*RespawnAck) ProtoMessage() {}
+
+func (x *RespawnAck) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[17]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use RespawnAck.ProtoReflect.Descriptor instead.
+func (*RespawnAck) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{17}
+}
+
+func (x *RespawnAck) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *RespawnAck) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *RespawnAck) GetZoneId() string {
+	if x != nil {
+		return x.ZoneId
+	}
+	return ""
+}
+
+func (x *RespawnAck) GetPosition() *Vec3 {
+	if x != nil {
+		return x.Position
+	}
+	return nil
+}
+
 var File_aetheria_proto protoreflect.FileDescriptor
 
 const file_aetheria_proto_rawDesc = "" +
@@ -996,7 +1396,38 @@ const file_aetheria_proto_rawDesc = "" +
 	"\vdespawn_ids\x18\x05 \x03(\x04R\n" +
 	"despawnIds\"\f\n" +
 	"\n" +
-	"LeaveWorldB+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
+	"LeaveWorld\"\x83\x01\n" +
+	"\tCastSkill\x12\x19\n" +
+	"\bskill_id\x18\x01 \x01(\tR\askillId\x12(\n" +
+	"\x10target_entity_id\x18\x02 \x01(\x04R\x0etargetEntityId\x121\n" +
+	"\faim_position\x18\x03 \x01(\v2\x0e.aetheria.Vec3R\vaimPosition\"N\n" +
+	"\n" +
+	"AutoAttack\x12(\n" +
+	"\x10target_entity_id\x18\x01 \x01(\x04R\x0etargetEntityId\x12\x16\n" +
+	"\x06active\x18\x02 \x01(\bR\x06active\"\xd0\x01\n" +
+	"\vCombatEvent\x12\x1d\n" +
+	"\n" +
+	"event_type\x18\x01 \x01(\tR\teventType\x12\x1b\n" +
+	"\tsource_id\x18\x02 \x01(\x04R\bsourceId\x12\x1b\n" +
+	"\ttarget_id\x18\x03 \x01(\x04R\btargetId\x12\x19\n" +
+	"\bskill_id\x18\x04 \x01(\tR\askillId\x12\x16\n" +
+	"\x06amount\x18\x05 \x01(\x03R\x06amount\x12\x18\n" +
+	"\amessage\x18\x06 \x01(\tR\amessage\x12\x1b\n" +
+	"\tnew_level\x18\a \x01(\x05R\bnewLevel\"\xa0\x01\n" +
+	"\vChatMessage\x12\x18\n" +
+	"\achannel\x18\x01 \x01(\tR\achannel\x12\x12\n" +
+	"\x04text\x18\x02 \x01(\tR\x04text\x12\x1b\n" +
+	"\tsender_id\x18\x03 \x01(\x04R\bsenderId\x12\x1f\n" +
+	"\vsender_name\x18\x04 \x01(\tR\n" +
+	"senderName\x12%\n" +
+	"\x0fsent_at_unix_ms\x18\x05 \x01(\x03R\fsentAtUnixMs\"\x10\n" +
+	"\x0eRespawnRequest\"w\n" +
+	"\n" +
+	"RespawnAck\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x17\n" +
+	"\azone_id\x18\x03 \x01(\tR\x06zoneId\x12*\n" +
+	"\bposition\x18\x04 \x01(\v2\x0e.aetheria.Vec3R\bpositionB+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
 
 var (
 	file_aetheria_proto_rawDescOnce sync.Once
@@ -1011,7 +1442,7 @@ func file_aetheria_proto_rawDescGZIP() []byte {
 }
 
 var file_aetheria_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
+var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_aetheria_proto_goTypes = []any{
 	(Envelope_Kind)(0),       // 0: aetheria.Envelope.Kind
 	(SessionStatus_State)(0), // 1: aetheria.SessionStatus.State
@@ -1027,6 +1458,12 @@ var file_aetheria_proto_goTypes = []any{
 	(*EntityState)(nil),      // 11: aetheria.EntityState
 	(*WorldSnapshot)(nil),    // 12: aetheria.WorldSnapshot
 	(*LeaveWorld)(nil),       // 13: aetheria.LeaveWorld
+	(*CastSkill)(nil),        // 14: aetheria.CastSkill
+	(*AutoAttack)(nil),       // 15: aetheria.AutoAttack
+	(*CombatEvent)(nil),      // 16: aetheria.CombatEvent
+	(*ChatMessage)(nil),      // 17: aetheria.ChatMessage
+	(*RespawnRequest)(nil),   // 18: aetheria.RespawnRequest
+	(*RespawnAck)(nil),       // 19: aetheria.RespawnAck
 }
 var file_aetheria_proto_depIdxs = []int32{
 	0,  // 0: aetheria.Envelope.kind:type_name -> aetheria.Envelope.Kind
@@ -1037,11 +1474,13 @@ var file_aetheria_proto_depIdxs = []int32{
 	7,  // 5: aetheria.EntityState.position:type_name -> aetheria.Vec3
 	11, // 6: aetheria.WorldSnapshot.self:type_name -> aetheria.EntityState
 	11, // 7: aetheria.WorldSnapshot.entities:type_name -> aetheria.EntityState
-	8,  // [8:8] is the sub-list for method output_type
-	8,  // [8:8] is the sub-list for method input_type
-	8,  // [8:8] is the sub-list for extension type_name
-	8,  // [8:8] is the sub-list for extension extendee
-	0,  // [0:8] is the sub-list for field type_name
+	7,  // 8: aetheria.CastSkill.aim_position:type_name -> aetheria.Vec3
+	7,  // 9: aetheria.RespawnAck.position:type_name -> aetheria.Vec3
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_aetheria_proto_init() }
@@ -1055,7 +1494,7 @@ func file_aetheria_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aetheria_proto_rawDesc), len(file_aetheria_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   12,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

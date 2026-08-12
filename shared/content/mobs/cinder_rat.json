@@ -1,0 +1,12 @@
+{
+  "id": "cinder_rat",
+  "name": "Cinder Rat",
+  "level": 1,
+  "hp": 30,
+  "zone_id": "emberfield",
+  "aggro_radius": 6,
+  "leash_radius": 20,
+  "skills": ["mob_bite"],
+  "xp_reward": 12,
+  "spawn_band": 1
+}

@@ -1,0 +1,11 @@
+{
+  "id": "twin_slash",
+  "name": "Twin Slash",
+  "class": "blade_dancer",
+  "rank": 1,
+  "kind": "tabtarget",
+  "range": 4,
+  "cooldown_ms": 3000,
+  "cost_mp": 5,
+  "power": 12
+}

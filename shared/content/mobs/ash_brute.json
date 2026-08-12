@@ -1,0 +1,12 @@
+{
+  "id": "ash_brute",
+  "name": "Ash Brute",
+  "level": 3,
+  "hp": 120,
+  "zone_id": "emberfield",
+  "aggro_radius": 9,
+  "leash_radius": 24,
+  "skills": ["mob_claw", "mob_gore"],
+  "xp_reward": 55,
+  "spawn_band": 2
+}

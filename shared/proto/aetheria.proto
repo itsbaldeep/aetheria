@@ -128,3 +128,64 @@ message WorldSnapshot {
 // Client → server: leave the world (client sends before closing, but the
 // server also handles abrupt disconnects on the WS read loop).
 message LeaveWorld {};
+
+// ========================= M3: chat, combat & mobs =========================
+// After EnterWorld the client can target mobs/players, auto-attack, and cast
+// skills. The server is authoritative: it validates cooldown/range/cost, rolls
+// damage, applies mitigation, awards XP on kills, and handles death/respawn.
+// Chat is relayed by channel (say = nearby, world = zone-wide).
+
+// Client → server: request to cast one skill. `skill_id` must be a valid skill
+// for the character's class. tabtarget kinds require `target_entity_id`; aimed
+// kinds (ground-AoE) require `aim_position`; pbaoe/self ignore target.
+message CastSkill {
+  string skill_id = 1;
+  uint64 target_entity_id = 2;
+  Vec3 aim_position = 3;
+}
+
+// Client → server: set or clear auto-attack on a target. `active=false` (or
+// target 0) clears it. Auto-attack repeats the class's `auto` skill while the
+// target is alive and in range; the server validates it like any cast.
+message AutoAttack {
+  uint64 target_entity_id = 1;
+  bool active = 2;
+}
+
+// Server → client: a combat/chat-log event. Every noteworthy combat moment
+// emits one of these to the players who can see it (attacker, target, and AOI
+// witnesses). `event_type` one of: hit, crit, miss, kill, death, xp, level_up,
+// respawn, shield, heal.
+message CombatEvent {
+  string event_type = 1;
+  uint64 source_id = 2;
+  uint64 target_id = 3;
+  string skill_id = 4;
+  int64 amount = 5;            // damage/xp amount as relevant
+  string message = 6;          // human-readable combat log line
+  int32 new_level = 7;         // set on level_up
+}
+
+// Client → server: send a chat message on a channel. Server fills sender
+// fields, rate-limits, and relays per channel rules. Channels: say (nearby),
+// world (zone-wide).
+message ChatMessage {
+  string channel = 1;
+  string text = 2;
+  uint64 sender_id = 3;        // server-filled on relay
+  string sender_name = 4;      // server-filled on relay
+  int64 sent_at_unix_ms = 5;   // server-filled on relay
+}
+
+// Client → server: request respawn after death. Server moves the character to
+// its zone's shrine, restores HP/MP, and replies RespawnAck.
+message RespawnRequest {}
+
+// Server → client: result of RespawnRequest.
+message RespawnAck {
+  bool ok = 1;
+  string error = 2;
+  string zone_id = 3;
+  Vec3 position = 4;
+}
+

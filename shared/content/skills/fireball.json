@@ -1,0 +1,12 @@
+{
+  "id": "fireball",
+  "name": "Fireball",
+  "class": "spellweaver",
+  "rank": 1,
+  "kind": "aimed",
+  "range": 22,
+  "radius": 5,
+  "cooldown_ms": 4000,
+  "cost_mp": 10,
+  "power": 16
+}

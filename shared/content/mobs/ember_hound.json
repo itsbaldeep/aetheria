@@ -1,0 +1,12 @@
+{
+  "id": "ember_hound",
+  "name": "Ember Hound",
+  "level": 3,
+  "hp": 100,
+  "zone_id": "emberfield",
+  "aggro_radius": 10,
+  "leash_radius": 24,
+  "skills": ["mob_bite", "mob_claw"],
+  "xp_reward": 50,
+  "spawn_band": 2
+}

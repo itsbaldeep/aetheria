@@ -11,6 +11,8 @@ RUN go build -trimpath -o /out/service ./server/cmd/${SERVICE}
 FROM alpine:3.20
 RUN adduser -D -u 1000 aetheria && apk add --no-cache ca-certificates tzdata
 COPY --from=build /out/service /usr/local/bin/service
+COPY --from=build /src/shared/content /opt/aetheria/content
+ENV AETHERIA_CONTENT_DIR=/opt/aetheria/content
 USER aetheria
 EXPOSE 8080
 ENTRYPOINT ["/usr/local/bin/service"]

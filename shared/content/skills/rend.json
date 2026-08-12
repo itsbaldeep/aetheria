@@ -1,0 +1,11 @@
+{
+  "id": "rend",
+  "name": "Rend",
+  "class": "blade_dancer",
+  "rank": 1,
+  "kind": "tabtarget",
+  "range": 4,
+  "cooldown_ms": 6000,
+  "cost_mp": 8,
+  "power": 18
+}

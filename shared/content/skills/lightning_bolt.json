@@ -1,0 +1,11 @@
+{
+  "id": "lightning_bolt",
+  "name": "Lightning Bolt",
+  "class": "spellweaver",
+  "rank": 1,
+  "kind": "tabtarget",
+  "range": 25,
+  "cooldown_ms": 5000,
+  "cost_mp": 9,
+  "power": 18
+}

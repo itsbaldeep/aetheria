@@ -1,0 +1,12 @@
+{
+  "id": "magma_boar",
+  "name": "Magma Boar",
+  "level": 4,
+  "hp": 180,
+  "zone_id": "emberfield",
+  "aggro_radius": 9,
+  "leash_radius": 26,
+  "skills": ["mob_gore", "mob_bite"],
+  "xp_reward": 85,
+  "spawn_band": 2
+}

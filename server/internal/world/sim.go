@@ -50,9 +50,27 @@ type Sim struct {
 	players map[int64]*Player
 	// byEntity for O(1) lookups on disconnect.
 	byEntity map[uint64]*Player
+	// mobs by entity id (alive + respawning).
+	mobs map[uint64]*Mob
+
+	// Content definitions (M3): skills by id, mob defs by id.
+	skills  map[string]*SkillDef
+	mobDefs map[string]*MobDef
+
+	// Muted characters by character id (chat mute).
+	muted map[int64]bool
+
+	// Shrines: zone id → respawn position.
+	shrines map[string]Vec3
 
 	// SavePos persists a character's position (called periodically + on leave).
 	SavePos func(ctx context.Context, charID int64, pos Vec3) error
+	// SaveChar persists level/xp/hp/mp for a character.
+	SaveChar func(ctx context.Context, charID int64, level int32, xp, hp, mp int64) error
+
+	// Event pushes a combat/chat event frame to a connection's outbox.
+	// Set by the wire layer so the sim doesn't depend on it.
+	onEvent func(p *Player, env *aet.Envelope)
 
 	logf func(format string, args ...any)
 	tick time.Duration
@@ -64,10 +82,14 @@ type Sim struct {
 // Options configures the simulation.
 type Options struct {
 	Zones        []*Zone
+	Content      *Content // skills + mob defs + shrines (M3)
 	Logf         func(format string, args ...any)
 	Tick         time.Duration
 	SavePos      func(ctx context.Context, charID int64, pos Vec3) error
+	SaveChar     func(ctx context.Context, charID int64, level int32, xp, hp, mp int64) error
 	OutboxBuffer int
+	// MobSpawn is a hook to place mobs (spawner). If nil, no mobs spawn.
+	MobSpawn func(s *Sim)
 }
 
 // New creates a world simulation. Caller must call Run in its own goroutine.
@@ -86,13 +108,33 @@ func New(opts Options) *Sim {
 		grid:         NewGrid(),
 		players:      make(map[int64]*Player),
 		byEntity:     make(map[uint64]*Player),
+		mobs:         make(map[uint64]*Mob),
+		skills:       make(map[string]*SkillDef),
+		mobDefs:      make(map[string]*MobDef),
+		muted:        make(map[int64]bool),
+		shrines:      make(map[string]Vec3),
 		SavePos:      opts.SavePos,
+		SaveChar:     opts.SaveChar,
 		logf:         opts.Logf,
 		tick:         opts.Tick,
 		outboxBuffer: opts.OutboxBuffer,
 	}
 	for _, z := range opts.Zones {
 		s.zones[z.ID] = z
+	}
+	if opts.Content != nil {
+		for id, sk := range opts.Content.Skills {
+			s.skills[id] = sk
+		}
+		for id, md := range opts.Content.Mobs {
+			s.mobDefs[id] = md
+		}
+		for zid, zc := range opts.Content.Zones {
+			s.shrines[zid] = zc.Shrine
+		}
+	}
+	if opts.MobSpawn != nil {
+		opts.MobSpawn(s)
 	}
 	return s
 }
@@ -137,6 +179,9 @@ func (s *Sim) Spawn(p *Player) error {
 	s.nextID++
 	p.ID = s.nextID
 	p.known = make(map[uint64]*aet.EntityState)
+	if p.cooldowns == nil {
+		p.cooldowns = map[string]int64{}
+	}
 	p.dirtySelf = true
 	s.players[p.CharacterID] = p
 	s.byEntity[p.ID] = p
@@ -247,6 +292,12 @@ func (s *Sim) tickOnce(now time.Time) {
 
 	for _, p := range s.players {
 		s.applyMove(p)
+	}
+	for _, p := range s.players {
+		s.processAutoAttack(p, now)
+	}
+	for _, m := range s.mobs {
+		s.tickMob(m, now)
 	}
 	for _, p := range s.players {
 		s.emitSnapshot(p)

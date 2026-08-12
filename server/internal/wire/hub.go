@@ -42,6 +42,9 @@ type CharacterSpawn struct {
 	Level  int32
 	HP     int64
 	MaxHP  int64
+	MP     int64
+	MaxMP  int64
+	XP     int64
 }
 
 // connState is per-connection mutable state, owned by the HandleWS goroutine
@@ -272,6 +275,70 @@ func (h *Hub) dispatch(ctx context.Context, st *connState, env *aet.Envelope) bo
 		}
 		h.handleMove(st.session, m)
 		return false
+	case "aetheria.CastSkill":
+		if st.session == nil {
+			h.s.Log("warn", "cast before enter world")
+			return false
+		}
+		cs := &aet.CastSkill{}
+		if err := proto.Unmarshal(env.Payload, cs); err != nil {
+			h.s.Log("warn", "bad cast payload", "error", err)
+			return false
+		}
+		req := world.CastRequest{SkillID: cs.SkillId, TargetID: cs.TargetEntityId}
+		if cs.AimPosition != nil {
+			ap := world.Vec3{X: float64(cs.AimPosition.X), Y: float64(cs.AimPosition.Y), Z: float64(cs.AimPosition.Z)}
+			req.AimPos = &ap
+		}
+		if err := h.sim.CastSkill(st.session.CharacterID, req); err != nil {
+			h.s.Log("info", "cast rejected", "char_id", st.session.CharacterID, "skill", cs.SkillId, "error", err)
+		}
+		return false
+	case "aetheria.AutoAttack":
+		if st.session == nil {
+			h.s.Log("warn", "autoattack before enter world")
+			return false
+		}
+		aa := &aet.AutoAttack{}
+		if err := proto.Unmarshal(env.Payload, aa); err != nil {
+			h.s.Log("warn", "bad autoattack payload", "error", err)
+			return false
+		}
+		if err := h.sim.SetAutoAttack(st.session.CharacterID, aa.TargetEntityId, aa.Active); err != nil {
+			h.s.Log("warn", "autoattack rejected", "char_id", st.session.CharacterID, "error", err)
+		}
+		return false
+	case "aetheria.ChatMessage":
+		if st.session == nil {
+			h.s.Log("warn", "chat before enter world")
+			return false
+		}
+		cm := &aet.ChatMessage{}
+		if err := proto.Unmarshal(env.Payload, cm); err != nil {
+			h.s.Log("warn", "bad chat payload", "error", err)
+			return false
+		}
+		if err := h.sim.SendChat(st.session.CharacterID, cm.Channel, cm.Text); err != nil {
+			h.s.Log("info", "chat rejected", "char_id", st.session.CharacterID, "channel", cm.Channel, "error", err)
+		}
+		return false
+	case "aetheria.RespawnRequest":
+		if st.session == nil {
+			h.s.Log("warn", "respawn before enter world")
+			return false
+		}
+		if err := h.sim.RespawnPlayer(st.session.CharacterID); err != nil {
+			h.s.Log("info", "respawn rejected", "char_id", st.session.CharacterID, "error", err)
+			h.enqueue(st, &aet.RespawnAck{Ok: false, Error: err.Error()})
+			return false
+		}
+		pos := h.sim.PlayerPos(st.session.CharacterID)
+		h.enqueue(st, &aet.RespawnAck{
+			Ok:       true,
+			ZoneId:   st.session.Zone,
+			Position: &aet.Vec3{X: float32(pos.X), Y: float32(pos.Y), Z: float32(pos.Z)},
+		})
+		return false
 	case "aetheria.LeaveWorld":
 		return true
 	default:
@@ -321,7 +388,11 @@ func (h *Hub) handleEnterWorld(ctx context.Context, st *connState, env *aet.Enve
 		},
 		AccountID:   st.accountID,
 		CharacterID: spawn.ID,
+		Class:       spawn.Class,
 		MaxSpeed:    maxSpeed,
+		MP:          spawn.MP,
+		MaxMP:       spawn.MaxMP,
+		XP:          spawn.XP,
 		Outbox:      st.outbox,
 	}
 	if err := h.sim.Spawn(p); err != nil {

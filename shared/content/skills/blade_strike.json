@@ -1,0 +1,11 @@
+{
+  "id": "blade_strike",
+  "name": "Blade Strike",
+  "class": "blade_dancer",
+  "rank": 1,
+  "kind": "auto",
+  "range": 3,
+  "cooldown_ms": 0,
+  "cost_mp": 0,
+  "power": 10
+}

@@ -1,0 +1,12 @@
+{
+  "id": "forest_boar",
+  "name": "Forest Boar",
+  "level": 1,
+  "hp": 50,
+  "zone_id": "emberfield",
+  "aggro_radius": 8,
+  "leash_radius": 20,
+  "skills": ["mob_bite", "mob_gore"],
+  "xp_reward": 20,
+  "spawn_band": 1
+}

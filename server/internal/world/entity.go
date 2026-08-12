@@ -5,6 +5,7 @@ package world
 import (
 	"math"
 	"sync/atomic"
+	"time"
 
 	aet "github.com/itsbaldeep/aetheria/server/gen"
 )
@@ -63,6 +64,13 @@ type Player struct {
 	AccountID   int64
 	CharacterID int64
 	MaxSpeed    float64
+	Class       string
+	MP          int64
+	MaxMP       int64
+	XP          int64
+
+	// Shield absorbs damage (mana_shield / defensive buffs).
+	Shield int64
 
 	// Outbox carries marshalled WorldSnapshot frames for this connection.
 	Outbox chan []byte
@@ -75,6 +83,12 @@ type Player struct {
 	known     map[uint64]*aet.EntityState
 	dirtySelf bool
 	pending   MoveIntent
+
+	// Combat state (sim goroutine owns):
+	target       uint64 // current target entity id (0 = none)
+	autoAttack   uint64 // auto-attack target (0 = none)
+	cooldowns    map[string]int64
+	shieldExpiry time.Time
 }
 
 // PlayerState is a Player's public snapshot (for bots/health).

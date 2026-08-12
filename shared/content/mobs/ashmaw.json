@@ -1,0 +1,12 @@
+{
+  "id": "ashmaw",
+  "name": "Ashmaw",
+  "level": 6,
+  "hp": 420,
+  "zone_id": "emberfield",
+  "aggro_radius": 12,
+  "leash_radius": 30,
+  "skills": ["mob_gore", "mob_claw"],
+  "xp_reward": 220,
+  "spawn_band": 3
+}

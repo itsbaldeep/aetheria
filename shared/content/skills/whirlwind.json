@@ -1,0 +1,12 @@
+{
+  "id": "whirlwind",
+  "name": "Whirlwind",
+  "class": "blade_dancer",
+  "rank": 1,
+  "kind": "pbaoe",
+  "range": 3,
+  "radius": 6,
+  "cooldown_ms": 8000,
+  "cost_mp": 15,
+  "power": 14
+}

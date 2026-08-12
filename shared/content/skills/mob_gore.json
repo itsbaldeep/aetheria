@@ -1,0 +1,11 @@
+{
+  "id": "mob_gore",
+  "name": "Gore",
+  "class": "mob",
+  "rank": 1,
+  "kind": "tabtarget",
+  "range": 2,
+  "cooldown_ms": 5000,
+  "cost_mp": 0,
+  "power": 14
+}

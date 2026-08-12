@@ -1,0 +1,11 @@
+{
+  "id": "mana_shield",
+  "name": "Mana Shield",
+  "class": "spellweaver",
+  "rank": 1,
+  "kind": "self",
+  "range": 0,
+  "cooldown_ms": 20000,
+  "cost_mp": 20,
+  "power": 30
+}

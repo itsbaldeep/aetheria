@@ -111,6 +111,9 @@ type CharacterSpawn struct {
 	Level  int32
 	HP     int64
 	MaxHP  int64
+	MP     int64
+	MaxMP  int64
+	XP     int64
 }
 
 // worldVec aliases the world package's Vec3 so the auth package stays small.
@@ -122,11 +125,12 @@ func (s *Store) LoadCharacterSpawn(ctx context.Context, accountID, charID int64)
 	var c CharacterSpawn
 	var x, y, z float64
 	err := s.pool.QueryRow(ctx,
-		`SELECT id, name, class, zone_id, pos_x, pos_y, pos_z, level, hp,
-		        COALESCE((stats->>'max_hp')::bigint, 100) AS max_hp
+		`SELECT id, name, class, zone_id, pos_x, pos_y, pos_z, level, hp, mp,
+		        COALESCE((stats->>'max_hp')::bigint, 100) AS max_hp,
+		        COALESCE((stats->>'max_mp')::bigint, 50) AS max_mp, xp
 		 FROM characters
 		 WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL`,
-		charID, accountID).Scan(&c.ID, &c.Name, &c.Class, &c.ZoneID, &x, &y, &z, &c.Level, &c.HP, &c.MaxHP)
+		charID, accountID).Scan(&c.ID, &c.Name, &c.Class, &c.ZoneID, &x, &y, &z, &c.Level, &c.HP, &c.MP, &c.MaxHP, &c.MaxMP, &c.XP)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
@@ -148,4 +152,37 @@ func (s *Store) SaveCharacterPosition(ctx context.Context, charID int64, pos wor
 		return fmt.Errorf("auth: save position: %w", err)
 	}
 	return nil
+}
+
+// SaveCharacterState persists level/xp/hp/mp after combat events (M3). HP/MP
+// current values are stored directly; max_hp/max_mp live in stats JSON so the
+// world's derived values stay in sync with level-ups.
+func (s *Store) SaveCharacterState(ctx context.Context, charID int64, level int32, xp, hp, mp int64) error {
+	_, err := s.pool.Exec(ctx,
+		`UPDATE characters
+		 SET level = $1, xp = $2, hp = $3, mp = $4,
+		     stats = jsonb_set(jsonb_set(stats, '{max_hp}', to_jsonb($5::bigint)), '{max_mp}', to_jsonb($6::bigint)),
+		     updated_at = now()
+		 WHERE id = $7`,
+		level, xp, hp, mp, maxHPForLevel(level), maxMPForLevel(level), charID)
+	if err != nil {
+		return fmt.Errorf("auth: save char state: %w", err)
+	}
+	return nil
+}
+
+// maxHPForLevel mirrors the world's level scaling for HP (M3).
+func maxHPForLevel(level int32) int64 {
+	if level < 1 {
+		level = 1
+	}
+	return 100 + 20*int64(level-1)
+}
+
+// maxMPForLevel mirrors the world's level scaling for MP (M3).
+func maxMPForLevel(level int32) int64 {
+	if level < 1 {
+		level = 1
+	}
+	return 50 + 10*int64(level-1)
 }

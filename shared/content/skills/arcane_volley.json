@@ -1,0 +1,12 @@
+{
+  "id": "arcane_volley",
+  "name": "Arcane Volley",
+  "class": "spellweaver",
+  "rank": 1,
+  "kind": "aimed",
+  "range": 25,
+  "radius": 7,
+  "cooldown_ms": 8000,
+  "cost_mp": 16,
+  "power": 20
+}

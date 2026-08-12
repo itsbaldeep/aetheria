@@ -1,0 +1,12 @@
+{
+  "id": "lava_crawler",
+  "name": "Lava Crawler",
+  "level": 5,
+  "hp": 240,
+  "zone_id": "emberfield",
+  "aggro_radius": 8,
+  "leash_radius": 28,
+  "skills": ["mob_bite", "mob_claw", "mob_gore"],
+  "xp_reward": 130,
+  "spawn_band": 3
+}

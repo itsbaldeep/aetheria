@@ -47,10 +47,25 @@ func main() {
 	}
 	guard := auth.NewGuard(sessions, store)
 
-	// World simulation (M2). Position save-back runs on a 30 s write-behind.
+	// Content seeds (brief §4): skills, mobs, zones are the single source of
+	// truth. The gameserver image ships shared/content.
+	content, err := world.LoadContent(platform.Env("AETHERIA_CONTENT_DIR", "shared/content"))
+	if err != nil {
+		s.Log("fatal", "content load failed", "error", err)
+		os.Exit(1)
+	}
+	s.Log("info", "content loaded", "skills", len(content.Skills), "mobs", len(content.Mobs), "zones", len(content.Zones))
+
+	// World simulation (M2/M3). Position save-back runs on a 30 s write-behind;
+	// character level/xp/hp/mp persist on change (SaveChar).
 	sim := world.New(world.Options{
-		Zones:   zoneDefs,
-		SavePos: store.SaveCharacterPosition,
+		Zones:    zoneDefs,
+		Content:  content,
+		SavePos:  store.SaveCharacterPosition,
+		SaveChar: store.SaveCharacterState,
+		MobSpawn: func(sim *world.Sim) {
+			world.SpawnMobs(sim, content, world.SpawnBands)
+		},
 	})
 	go sim.Run(ctx)
 	// Write-behind flush every 30 s (brief §3: dirty-flag flush).
@@ -118,6 +133,9 @@ func (c *charLoader) LoadCharacter(ctx context.Context, accountID, charID int64)
 		Level:  row.Level,
 		HP:     row.HP,
 		MaxHP:  row.MaxHP,
+		MP:     row.MP,
+		MaxMP:  row.MaxMP,
+		XP:     row.XP,
 	}, nil
 }
 
