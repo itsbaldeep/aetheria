@@ -348,10 +348,20 @@ func runCombatSoak(wsURL, apiURL, ctrlURL string, botCount int, duration time.Du
 			o := &outcome{errors: map[string]int{}}
 			results[i-1] = o
 			email := fmt.Sprintf("botsoak-%s-%d@aetheria.test", stamp, i)
-			if _, err := scenarios.RegisterBatch(scenarios.RegisterConfig{
-				BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "soak-pass-12", BatchSize: 1,
-			}); err != nil {
-				fatal("soak seed %d: %v", i, err)
+			// Seeding 50 accounts at once can hit a transient register timeout
+			// on a contended box; retry a couple of times before giving up.
+			var seedErr error
+			for attempt := 0; attempt < 3; attempt++ {
+				_, seedErr = scenarios.RegisterBatch(scenarios.RegisterConfig{
+					BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "soak-pass-12", BatchSize: 1,
+				})
+				if seedErr == nil {
+					break
+				}
+				time.Sleep(2 * time.Second)
+			}
+			if seedErr != nil {
+				fatal("soak seed %d: %v", i, seedErr)
 			}
 			lg, err := scenarios.Login(apiURL, email, "soak-pass-12")
 			if err != nil || lg.Token == "" {
