@@ -28,7 +28,7 @@ import (
 
 func main() {
 	addr := flag.String("addr", "wss://play.aetheria.apps.deployden.tech/ws", "gameserver websocket URL")
-	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|roamer|grinder|quester|trader|partygoer|chaos)")
+	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|chaos)")
 	api := flag.String("api", "http://127.0.0.1:3016", "authserver base URL (http://host:port)")
 	n := flag.Int("n", 20, "count for batch profiles (register/roamer/chaos)")
 	duration := flag.Duration("duration", 10*time.Second, "duration for soak profiles (roamer/chaos)")
@@ -49,10 +49,12 @@ func main() {
 		runPresence(*addr, *api)
 	case "roamer":
 		runRoamer(*addr, *api, *n, *duration)
+	case "combat":
+		runCombat(*addr, *api)
 	case "chaos":
 		runChaos(*addr, *api, *n, *duration)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer chaos)\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer combat chaos)\n", *profile)
 		os.Exit(2)
 	}
 }
@@ -194,6 +196,54 @@ func runRoamer(wsURL, apiURL string, botCount int, duration time.Duration) {
 		}
 	}
 	fmt.Println("roamer: ALL PASS — every bot streamed snapshots")
+}
+
+// runCombat is the M3 acceptance: one bot kills a boar (gains XP), then dies
+// to Ashmaw and respawns at the shrine.
+func runCombat(wsURL, apiURL string) {
+	stamp := time.Now().UTC().Format("20060102T150405")
+	email := fmt.Sprintf("botcombat-%s@aetheria.test", stamp)
+	seed := scenarios.RegisterConfig{BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "combat-pass-5", BatchSize: 1}
+	if _, err := scenarios.RegisterBatch(seed); err != nil {
+		fatal("seed: %v", err)
+	}
+	lg, err := scenarios.Login(apiURL, email, "combat-pass-5")
+	if err != nil || lg.Token == "" {
+		fatal("login: %v", err)
+	}
+	name := "Combat" + stamp[len(stamp)-3:]
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
+		fatal("create char: status=%d", st)
+	}
+	roster, st, _ := scenarios.ListCharacters(apiURL, lg.Token)
+	if st != 200 || len(roster) != 1 {
+		fatal("roster len=%d st=%d", len(roster), st)
+	}
+	charID := int64(roster[0]["id"].(float64))
+
+	res, err := scenarios.Combat(wsURL, lg.Token, charID, 180*time.Second, os.Stderr)
+	if err != nil {
+		fatal("combat: %v", err)
+	}
+	if res.SnapshotCount == 0 {
+		fatal("combat: no snapshots seen")
+	}
+	if !res.KilledBoar {
+		fatal("combat: boar never killed")
+	}
+	if res.XPgained <= 0 {
+		fatal("combat: no XP gained")
+	}
+	if !res.Died {
+		fatal("combat: bot never died to Ashmaw")
+	}
+	if !res.Respawned {
+		fatal("combat: bot never respawned")
+	}
+	if res.HPAfterRespawn <= 0 {
+		fatal("combat: respawned with HP=%d", res.HPAfterRespawn)
+	}
+	fmt.Printf("combat ALL PASS: boar killed (+%d XP), died, respawned HP=%d\n", res.XPgained, res.HPAfterRespawn)
 }
 
 // runChaos is the mandatory fuzzer (brief §12.3): sends random valid+invalid

@@ -380,6 +380,9 @@ func (s *Sim) respawnLocked(p *Player) {
 	p.target = 0
 	if shrine, ok := s.shrines[p.Zone]; ok {
 		p.Pos = shrine
+		if z := s.zoneFor(p.Pos); z != nil {
+			p.Zone = z.ID
+		}
 	}
 	p.dirtySelf = true
 	p.known = make(map[uint64]*aet.EntityState)

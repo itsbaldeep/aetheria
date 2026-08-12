@@ -20,10 +20,12 @@ import (
 )
 
 // zoneDefs are the M2 zones (brief §6). Havenport is the safe town (M5),
-// Emberfield the open field (600×600). Dungeon instances land in M7.
+// a small pocket inside Emberfield the open field (600×600, everything not in
+// town). M3 derives a player's zone from position so walking out of town
+// enters the field. Dungeon instances land in M7.
 var zoneDefs = []*world.Zone{
-	{ID: "havenport", Name: "Havenport", Safe: true, SizeX: 300, SizeZ: 300},
-	{ID: "emberfield", Name: "Emberfield", Safe: false, SizeX: 600, SizeZ: 600},
+	{ID: "havenport", Name: "Havenport", Safe: true, MinX: -50, MaxX: 50, MinZ: -50, MaxZ: 50},
+	{ID: "emberfield", Name: "Emberfield", Safe: false, MinX: -300, MaxX: 300, MinZ: -300, MaxZ: 300},
 }
 
 func main() {

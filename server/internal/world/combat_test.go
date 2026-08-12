@@ -33,7 +33,7 @@ func m3TestContent() *Content {
 			"ashmaw":      {ID: "ashmaw", Name: "Ashmaw", Level: 6, HP: 420, ZoneID: "emberfield", AggroRadius: 12, LeashRadius: 30, Skills: []string{"mob_gore", "mob_bite"}, XPReward: 220, SpawnBand: 3},
 		},
 		Zones: map[string]*ZoneContent{
-			"emberfield": {ID: "emberfield", Name: "Emberfield", SizeX: 600, SizeZ: 600, Shrine: Vec3{150, 0, 0}},
+			"emberfield": {ID: "emberfield", Name: "Emberfield", MinX: -300, MaxX: 300, MinZ: -300, MaxZ: 300, Shrine: Vec3{150, 0, 0}},
 		},
 	}
 }
@@ -43,7 +43,7 @@ func m3Sim(t *testing.T) (*Sim, *testSave) {
 	t.Helper()
 	ts := &testSave{}
 	s := New(Options{
-		Zones:    []*Zone{{ID: "emberfield", Name: "Emberfield", SizeX: 600, SizeZ: 600}},
+		Zones:    []*Zone{{ID: "emberfield", Name: "Emberfield", MinX: -300, MaxX: 300, MinZ: -300, MaxZ: 300}},
 		Content:  m3TestContent(),
 		Tick:     50 * time.Millisecond,
 		Logf:     func(f string, a ...any) { t.Logf(f, a...) },
@@ -174,7 +174,7 @@ func TestSkillCost(t *testing.T) {
 
 func TestSkillSafeZone(t *testing.T) {
 	safe := New(Options{
-		Zones:   []*Zone{{ID: "havenport", Name: "Havenport", Safe: true, SizeX: 300, SizeZ: 300}},
+		Zones:   []*Zone{{ID: "havenport", Name: "Havenport", Safe: true, MinX: -50, MaxX: 50, MinZ: -50, MaxZ: 50}},
 		Content: m3TestContent(),
 	})
 	p := &Player{Entity: Entity{Type: TypePlayer, Name: "P", Zone: "havenport", Pos: Vec3{0, 0, 0}, MaxHP: 100, HP: 100}, CharacterID: 1, Class: "blade_dancer", MP: 100, MaxMP: 100}

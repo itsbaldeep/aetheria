@@ -22,7 +22,7 @@ import (
 func newTestSim(t *testing.T) *world.Sim {
 	t.Helper()
 	return world.New(world.Options{
-		Zones: []*world.Zone{{ID: "emberfield", Name: "Emberfield", SizeX: 600, SizeZ: 600}},
+		Zones: []*world.Zone{{ID: "emberfield", Name: "Emberfield", MinX: -300, MaxX: 300, MinZ: -300, MaxZ: 300}},
 		Logf:  func(f string, a ...any) { t.Logf(f, a...) },
 	})
 }

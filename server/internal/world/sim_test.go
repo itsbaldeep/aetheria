@@ -10,7 +10,7 @@ import (
 	aet "github.com/itsbaldeep/aetheria/server/gen"
 )
 
-var testZone = &Zone{ID: "emberfield", Name: "Emberfield", SizeX: 600, SizeZ: 600}
+var testZone = &Zone{ID: "emberfield", Name: "Emberfield", MinX: -300, MaxX: 300, MinZ: -300, MaxZ: 300}
 
 func newTestSim(t *testing.T) (*Sim, []*Player) {
 	t.Helper()
@@ -229,4 +229,44 @@ func TestSetMoveValidation(t *testing.T) {
 	if err := s.SetMove(99, MoveIntent{}); err == nil {
 		t.Fatal("move for non-existent char should error")
 	}
+}
+
+func TestWalkingOutOfTownTransitionsZone(t *testing.T) {
+	s := New(Options{
+		Zones: []*Zone{
+			{ID: "havenport", Name: "Havenport", Safe: true, MinX: -50, MaxX: 50, MinZ: -50, MaxZ: 50},
+			{ID: "emberfield", Name: "Emberfield", MinX: -300, MaxX: 300, MinZ: -300, MaxZ: 300},
+		},
+		Tick: 50 * time.Millisecond,
+	})
+	p := spawnTestPlayer(s, 1, Vec3{0, 0, 0}, 8)
+	// Inside the town pocket → safe zone.
+	s.mu.Lock()
+	zone := p.Zone
+	s.mu.Unlock()
+	if zone != "havenport" {
+		t.Fatalf("spawn zone = %s, want havenport", zone)
+	}
+	if z := s.zones[p.Zone]; z == nil || !z.Safe {
+		t.Fatal("player should be in the safe zone at spawn")
+	}
+	// Walk far east (beyond the 50 m pocket) for a few seconds.
+	if err := s.SetMove(1, MoveIntent{Direction: Vec3{1, 0, 0}, Speed: 8}); err != nil {
+		t.Fatal(err)
+	}
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		s.tickOnce(time.Now())
+		s.mu.Lock()
+		zone := p.Zone
+		pos := p.Pos
+		s.mu.Unlock()
+		if zone == "emberfield" {
+			if pos.X < 50 {
+				t.Fatalf("zone flipped at x=%.1f, want beyond town boundary 50", pos.X)
+			}
+			return
+		}
+	}
+	t.Fatal("player never left the town pocket")
 }

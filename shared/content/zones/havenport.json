@@ -2,7 +2,9 @@
   "id": "havenport",
   "name": "Havenport",
   "safe": true,
-  "size_x": 300,
-  "size_z": 300,
+  "min_x": -50,
+  "max_x": 50,
+  "min_z": -50,
+  "max_z": 50,
   "shrine": { "x": 0, "y": 0, "z": 0 }
 }

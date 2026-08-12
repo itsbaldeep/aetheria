@@ -30,13 +30,18 @@ type MoveIntent struct {
 	RotY      float64
 }
 
-// Zone is a playable area (brief §6). Safe zones forbid combat (M3).
+// Zone is a playable area (brief §6). Safe zones forbid combat (M3). Bounds
+// are world-space rectangles; a player's zone is derived from position, so
+// crossing a boundary (walking out of town) transitions zones. The safe town
+// is a pocket inside the field.
 type Zone struct {
-	ID    string
-	Name  string
-	Safe  bool
-	SizeX float64
-	SizeZ float64
+	ID   string
+	Name string
+	Safe bool
+	MinX float64
+	MaxX float64
+	MinZ float64
+	MaxZ float64
 }
 
 // Sim is the world simulation.
@@ -181,6 +186,12 @@ func (s *Sim) Spawn(p *Player) error {
 	p.known = make(map[uint64]*aet.EntityState)
 	if p.cooldowns == nil {
 		p.cooldowns = map[string]int64{}
+	}
+	// Position is the single source of truth for the zone: derive it so a
+	// saved position always maps to the right ruleset even if the stored
+	// zone_id is stale.
+	if z := s.zoneFor(p.Pos); z != nil {
+		p.Zone = z.ID
 	}
 	p.dirtySelf = true
 	s.players[p.CharacterID] = p
@@ -363,26 +374,45 @@ func (s *Sim) applyMove(p *Player) {
 		return
 	}
 
-	// Move, clamped to zone bounds.
+	// Move, clamped to the world and then re-derived zone boundary.
 	newPos := p.Pos.Add(delta)
-	if z := s.zones[p.Zone]; z != nil {
-		halfX, halfZ := z.SizeX/2, z.SizeZ/2
-		if newPos.X < -halfX {
-			newPos.X = -halfX
+	if z := s.zoneFor(newPos); z != nil {
+		if newPos.X < z.MinX {
+			newPos.X = z.MinX
 		}
-		if newPos.X > halfX {
-			newPos.X = halfX
+		if newPos.X > z.MaxX {
+			newPos.X = z.MaxX
 		}
-		if newPos.Z < -halfZ {
-			newPos.Z = -halfZ
+		if newPos.Z < z.MinZ {
+			newPos.Z = z.MinZ
 		}
-		if newPos.Z > halfZ {
-			newPos.Z = halfZ
+		if newPos.Z > z.MaxZ {
+			newPos.Z = z.MaxZ
+		}
+		if newZone := s.zoneFor(newPos); newZone != nil && newZone.ID != p.Zone {
+			s.log("info: zone transition char=%d %s -> %s", p.CharacterID, p.Zone, newZone.ID)
+			p.Zone = newZone.ID
 		}
 	}
 	p.Pos = newPos
 	p.dirtySelf = true
 	s.grid.Refresh(&p.Entity)
+}
+
+// zoneFor returns the zone containing a position. Bounds are concentric: the
+// safe town is a pocket inside the field, so the smallest containing zone
+// wins (havenport ⊂ emberfield). nil when no zone contains the point.
+func (s *Sim) zoneFor(pos Vec3) *Zone {
+	var best *Zone
+	for _, z := range s.zones {
+		if pos.X < z.MinX || pos.X > z.MaxX || pos.Z < z.MinZ || pos.Z > z.MaxZ {
+			continue
+		}
+		if best == nil || (z.MaxX-z.MinX)*(z.MaxZ-z.MinZ) < (best.MaxX-best.MinX)*(best.MaxZ-best.MinZ) {
+			best = z
+		}
+	}
+	return best
 }
 
 // emitSnapshot computes the player's AOI delta and pushes a WorldSnapshot.

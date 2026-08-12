@@ -53,8 +53,10 @@ type ZoneContent struct {
 	ID     string  `json:"id"`
 	Name   string  `json:"name"`
 	Safe   bool    `json:"safe"`
-	SizeX  float64 `json:"size_x"`
-	SizeZ  float64 `json:"size_z"`
+	MinX   float64 `json:"min_x"`
+	MaxX   float64 `json:"max_x"`
+	MinZ   float64 `json:"min_z"`
+	MaxZ   float64 `json:"max_z"`
 	Shrine Vec3    `json:"shrine"`
 }
 

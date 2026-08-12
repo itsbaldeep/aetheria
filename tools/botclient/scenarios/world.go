@@ -26,6 +26,8 @@ type WorldBot struct {
 	PosZ     float64
 	MaxSpeed float64
 	seq      uint64
+	// autoTarget is the entity id the bot is currently auto-attacking.
+	autoTarget uint64
 
 	// Seen is the most recent EntityState per entity id (from snapshots).
 	Seen map[uint64]*aet.EntityState
@@ -33,6 +35,14 @@ type WorldBot struct {
 	Despawned []uint64
 	// SnapshotCount counts WorldSnapshots received.
 	SnapshotCount int
+	// Combat holds relayed CombatEvent frames read so far (combat log).
+	Combat []*aet.CombatEvent
+	// Chat holds relayed ChatMessage frames read so far.
+	Chat []*aet.ChatMessage
+	// LastRespawnAck is the most recent RespawnAck received.
+	LastRespawnAck *aet.RespawnAck
+	// LastSelfHP tracks the player's HP from the last `self` snapshot.
+	LastSelfHP int64
 }
 
 // ConnectWorld dials the gameserver WS with a Bearer token, reads ServerHello,
@@ -125,38 +135,187 @@ func (b *WorldBot) Stop(ctx context.Context) error {
 	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(mv))
 }
 
-// ReadSnapshot blocks until the next WorldSnapshot envelope arrives and
-// updates b.Seen/Despawned/positions. Returns false on connection error.
-func (b *WorldBot) ReadSnapshot(ctx context.Context) bool {
+// AutoAttack sets or clears auto-attack on a target entity.
+func (b *WorldBot) AutoAttack(ctx context.Context, target uint64, active bool) error {
+	b.seq++
+	aa := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.AutoAttack",
+		Payload:     mustMarshal(&aet.AutoAttack{TargetEntityId: target, Active: active}),
+	}
+	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(aa))
+}
+
+// Cast sends a CastSkill request. AimPos is optional (aimed/pbaoe kinds).
+func (b *WorldBot) Cast(ctx context.Context, skillID string, target uint64, aim *aet.Vec3) error {
+	b.seq++
+	cs := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.CastSkill",
+		Payload:     mustMarshal(&aet.CastSkill{SkillId: skillID, TargetEntityId: target, AimPosition: aim}),
+	}
+	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(cs))
+}
+
+// SendChat sends a chat message on a channel (say|world). Server fills sender.
+func (b *WorldBot) SendChat(ctx context.Context, channel, text string) error {
+	b.seq++
+	cm := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.ChatMessage",
+		Payload:     mustMarshal(&aet.ChatMessage{Channel: channel, Text: text}),
+	}
+	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(cm))
+}
+
+// Respawn sends a RespawnRequest after death.
+func (b *WorldBot) Respawn(ctx context.Context) error {
+	b.seq++
+	rq := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.RespawnRequest",
+		Payload:     mustMarshal(&aet.RespawnRequest{}),
+	}
+	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(rq))
+}
+
+// KeepAlive sends a Ping (fire-and-forget; its Pong is drained by the next
+// ReadSnapshot). The server's read loop idles out after 10 s of no inbound
+// frames, so idle phases must stay chatty.
+func (b *WorldBot) KeepAlive(ctx context.Context) error {
+	b.seq++
+	p := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.Ping",
+		Payload:     mustMarshal(&aet.Ping{SentAtUnixMs: time.Now().UnixMilli()}),
+	}
+	return b.conn.Write(ctx, websocket.MessageBinary, mustMarshal(p))
+}
+
+// StartHeartbeat runs KeepAlive on a background ticker until ctx is done,
+// then exits. The read loop may block for a long time (no snapshots when
+// nothing changes), which would otherwise starve the server's inbound read
+// loop and get the socket idled out.
+func (b *WorldBot) StartHeartbeat(ctx context.Context, interval time.Duration) {
+	go func() {
+		t := time.NewTicker(interval)
+		defer t.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-t.C:
+				if err := b.KeepAlive(ctx); err != nil {
+					return
+				}
+			}
+		}
+	}()
+}
+
+// FindHostile returns the nearest hostile (mob) entity in AOI, or nil.
+func (b *WorldBot) FindHostile() *aet.EntityState {
+	var best *aet.EntityState
+	var bestDist float64
+	for _, e := range b.Seen {
+		if e.EntityType != "mob" {
+			continue
+		}
+		if e.Hp <= 0 {
+			continue
+		}
+		dx := float64(e.Position.X) - b.PosX
+		dz := float64(e.Position.Z) - b.PosZ
+		d := dx*dx + dz*dz
+		if best == nil || d < bestDist {
+			best, bestDist = e, d
+		}
+	}
+	return best
+}
+
+// DrainCombat returns and clears accumulated CombatEvents.
+func (b *WorldBot) DrainCombat() []*aet.CombatEvent {
+	out := b.Combat
+	b.Combat = nil
+	return out
+}
+
+// ReadFrame reads one frame (any payload type) and routes it into the bot's
+// state. Returns an envelope (never nil on success).
+func (b *WorldBot) ReadFrame(ctx context.Context) (*aet.Envelope, error) {
 	_, data, err := b.conn.Read(ctx)
 	if err != nil {
-		return false
+		return nil, err
 	}
 	env := &aet.Envelope{}
 	if err := proto.Unmarshal(data, env); err != nil {
-		return false
+		return env, fmt.Errorf("scenarios: unmarshal frame: %w", err)
 	}
-	if env.PayloadType != "aetheria.WorldSnapshot" {
-		return false
+	switch env.PayloadType {
+	case "aetheria.WorldSnapshot":
+		snap := &aet.WorldSnapshot{}
+		if err := proto.Unmarshal(env.Payload, snap); err != nil {
+			return env, fmt.Errorf("scenarios: unmarshal snapshot: %w", err)
+		}
+		b.SnapshotCount++
+		for _, e := range snap.Self {
+			b.EntityID = e.EntityId
+			b.PosX, b.PosY, b.PosZ = float64(e.Position.X), float64(e.Position.Y), float64(e.Position.Z)
+			b.LastSelfHP = e.Hp
+			b.Seen[e.EntityId] = e
+		}
+		for _, e := range snap.Entities {
+			b.Seen[e.EntityId] = e
+		}
+		for _, id := range snap.DespawnIds {
+			b.Despawned = append(b.Despawned, id)
+			delete(b.Seen, id)
+		}
+	case "aetheria.CombatEvent":
+		ev := &aet.CombatEvent{}
+		if err := proto.Unmarshal(env.Payload, ev); err == nil {
+			b.Combat = append(b.Combat, ev)
+		}
+	case "aetheria.ChatMessage":
+		cm := &aet.ChatMessage{}
+		if err := proto.Unmarshal(env.Payload, cm); err == nil {
+			b.Chat = append(b.Chat, cm)
+		}
+	case "aetheria.RespawnAck":
+		ack := &aet.RespawnAck{}
+		if err := proto.Unmarshal(env.Payload, ack); err == nil {
+			b.LastRespawnAck = ack
+		}
 	}
-	snap := &aet.WorldSnapshot{}
-	if err := proto.Unmarshal(env.Payload, snap); err != nil {
-		return false
+	return env, nil
+}
+
+// ReadSnapshot blocks until the next WorldSnapshot envelope arrives and
+// updates b.Seen/Despawned/positions. Returns false on connection error.
+// Non-snapshot frames (Pong, CombatEvent, RespawnAck, chat) are drained
+// without stopping the wait for the next snapshot.
+func (b *WorldBot) ReadSnapshot(ctx context.Context) bool {
+	ok, _ := b.ReadSnapshotErr(ctx)
+	return ok
+}
+
+// ReadSnapshotErr is ReadSnapshot but also returns the underlying error.
+func (b *WorldBot) ReadSnapshotErr(ctx context.Context) (bool, error) {
+	for {
+		env, err := b.ReadFrame(ctx)
+		if err != nil {
+			return false, err
+		}
+		if env.PayloadType == "aetheria.WorldSnapshot" {
+			return true, nil
+		}
 	}
-	b.SnapshotCount++
-	for _, e := range snap.Self {
-		b.EntityID = e.EntityId
-		b.PosX, b.PosY, b.PosZ = float64(e.Position.X), float64(e.Position.Y), float64(e.Position.Z)
-		b.Seen[e.EntityId] = e
-	}
-	for _, e := range snap.Entities {
-		b.Seen[e.EntityId] = e
-	}
-	for _, id := range snap.DespawnIds {
-		b.Despawned = append(b.Despawned, id)
-		delete(b.Seen, id)
-	}
-	return true
 }
 
 // ReadSnapshots consumes up to n snapshots (or until ctx done).

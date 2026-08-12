@@ -3,7 +3,10 @@
 // runs get stable density. Only called at sim construction.
 package world
 
-import "math"
+import (
+	"math"
+	"sort"
+)
 
 // SpawnBands maps spawn_band → emberfield sub-areas. Band 1 is close to town
 // (low level), band 3 is deep field (high level). Positions are absolute in
@@ -26,12 +29,19 @@ var SpawnBands = map[int][]Vec3{
 // SpawnMobs populates the sim's mobs map from content defs. Each mob def gets
 // one instance at a banded spawn point (count = number of positions for that
 // band modulo). Positions are assigned round-robin so mobs are spread out.
+// Defs are iterated in sorted-id order so spawn placement is stable across
+// restarts (a map iteration order would randomize where band-1 mobs land).
 func SpawnMobs(s *Sim, content *Content, bands map[int][]Vec3) {
 	positions := map[int][]Vec3{}
 	if bands != nil {
 		positions = bands
 	}
+	defs := make([]*MobDef, 0, len(content.Mobs))
 	for _, def := range content.Mobs {
+		defs = append(defs, def)
+	}
+	sort.Slice(defs, func(i, j int) bool { return defs[i].ID < defs[j].ID })
+	for _, def := range defs {
 		band := def.SpawnBand
 		if band == 0 {
 			band = 1

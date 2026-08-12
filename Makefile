@@ -69,7 +69,8 @@ bottest:
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile presence -duration 10s
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile roamer -n 5 -duration 12s
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile chaos -duration 5s
-	@echo "bottest: full-auth + presence + roamer + chaos OK (M1 + M2 acceptance)"
+	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile combat
+	@echo "bottest: full-auth + presence + roamer + chaos + combat OK (M1 + M2 + M3 acceptance)"
 
 loadtest:
 	@echo "loadtest (M2+): spawn $(N) botclients for $(DURATION)"

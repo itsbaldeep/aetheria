@@ -2,7 +2,9 @@
   "id": "emberfield",
   "name": "Emberfield",
   "safe": false,
-  "size_x": 600,
-  "size_z": 600,
+  "min_x": -300,
+  "max_x": 300,
+  "min_z": -300,
+  "max_z": 300,
   "shrine": { "x": 150, "y": 0, "z": 0 }
 }
