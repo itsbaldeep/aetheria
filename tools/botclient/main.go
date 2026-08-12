@@ -32,6 +32,9 @@ import (
 	"github.com/itsbaldeep/aetheria/tools/botclient/scenarios"
 )
 
+// soakVerbose toggles per-frame combat debug output during combat-soak.
+var soakVerbose bool
+
 func main() {
 	addr := flag.String("addr", "wss://play.aetheria.apps.deployden.tech/ws", "gameserver websocket URL")
 	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|combat-soak|chat|chaos)")
@@ -39,6 +42,7 @@ func main() {
 	ctrl := flag.String("ctrl", "http://127.0.0.1:5003", "gameserver control endpoint (for combat-soak stats)")
 	n := flag.Int("n", 20, "count for batch profiles (register/roamer/chaos/combat-soak)")
 	duration := flag.Duration("duration", 10*time.Second, "duration for soak profiles (roamer/chaos/combat-soak)")
+	flag.BoolVar(&soakVerbose, "soak-verbose", false, "print per-frame combat debug during combat-soak")
 	flag.Parse()
 
 	switch *profile {
@@ -370,7 +374,11 @@ func runCombatSoak(wsURL, apiURL, ctrlURL string, botCount int, duration time.Du
 				if remaining > 120*time.Second {
 					remaining = 120 * time.Second
 				}
-				res, err := scenarios.Combat(wsURL, lg.Token, charID, remaining, io.Discard)
+				var dbg io.Writer = io.Discard
+				if soakVerbose {
+					dbg = os.Stderr
+				}
+				res, err := scenarios.Combat(wsURL, lg.Token, charID, remaining, dbg)
 				o.cycles++
 				if res != nil && res.NegativeHPSeen {
 					o.negHP = true

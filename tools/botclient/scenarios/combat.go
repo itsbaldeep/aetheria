@@ -59,6 +59,16 @@ func Combat(wsURL, token string, charID int64, timeout time.Duration, dbg io.Wri
 			if res.Died && res.Respawned {
 				break
 			}
+			if ctx.Err() != nil {
+				// The per-cycle budget expired while a read was blocked. The
+				// deadline-driven local conn teardown (coder/websocket closes
+				// the socket to unblock the read) surfaces as net.ErrClosed
+				// mid-body instead of ctx.Err(). This is a budget end, not a
+				// server disconnect.
+				return nil, fmt.Errorf("scenarios: cycle budget exceeded in phase %s: %w", phase, ctx.Err())
+			}
+			fmt.Fprintf(dbg, "DISC char=%d phase=%s el=%ds snaps=%d err=%v\n",
+				charID, phase, int(time.Since(start).Seconds()), res.SnapshotCount, err)
 			return nil, fmt.Errorf("scenarios: disconnected in phase %s: %v", phase, err)
 		}
 		res.SnapshotCount++

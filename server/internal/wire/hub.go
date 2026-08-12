@@ -7,6 +7,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -138,6 +139,8 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 				err := conn.Write(ctx, websocket.MessageBinary, frame)
 				cancel()
 				if err != nil {
+					h.s.Log("warn", "socket write failed",
+						"remote", remote, "account_id", accountID, "error", err.Error())
 					select {
 					case writeErr <- err:
 					default:
@@ -164,6 +167,12 @@ func (h *Hub) HandleWS(w http.ResponseWriter, r *http.Request) {
 	for {
 		env, err := h.receive(conn)
 		if err != nil {
+			charID := ""
+			if st.session != nil {
+				charID = strconv.FormatInt(st.session.CharacterID, 10)
+			}
+			h.s.Log("info", "conn read loop end",
+				"remote", remote, "account_id", accountID, "char_id", charID, "reason", err.Error())
 			break
 		}
 		done := h.dispatch(r.Context(), st, env)
