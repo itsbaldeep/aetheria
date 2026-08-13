@@ -54,6 +54,25 @@ rot_y, speed, hp, max_hp, level, is_moving`.
 5. Client sends `LeaveWorld` (or drops the socket) to exit; the server saves
    the position and despawns the player.
 
+## Economy (M4)
+
+Items, inventory, loot, and vendors (see BRIEF §212). Ground drops stream as
+entities with `entity_type: "drop"`; the server enforces the pickup radius and
+single-claim.
+
+| client → server | server → client | notes |
+|---|---|---|
+| `PickupItem {drop_entity_id}` | `LootEvent` | claims a ground drop exactly once |
+| `EquipItem {item_id}` | `LootEvent` | moves an inventory item to its slot |
+| `UnequipItem {slot}` | `LootEvent` | moves an equipped item back to inventory |
+| `SellItem {item_id, quantity}` | `LootEvent` | credits `vendor_price × qty` gold |
+| `BuyItem {vendor_id, item_def_id, quantity}` | `LootEvent` | pays `vendor_price × qty` gold |
+
+`LootEvent {ok, error?, item_id, item_def_id, quantity, gold, balance}`
+confirms every mutation and reports the player's new gold balance. All gold
+mutations write a signed `gold_ledger` row; the audit invariant is
+`sum(gold_ledger) == world gold`.
+
 ## Message index
 
 - Envelope
@@ -65,3 +84,5 @@ rot_y, speed, hp, max_hp, level, is_moving`.
 - MoveIntent
 - EntityState, WorldSnapshot
 - LeaveWorld
+- CastSkill, AutoAttack, CombatEvent, ChatMessage, RespawnRequest, RespawnAck (M3)
+- PickupItem, EquipItem, UnequipItem, SellItem, BuyItem, LootEvent (M4)

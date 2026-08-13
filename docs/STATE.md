@@ -3,10 +3,35 @@
 Update at the end of every work block. Read at the start of every session.
 
 ## Current milestone
-**M4 — Items, Inventory, Loot, Vendors** (M3 chat+combat core complete: chat
-relay/mute, combat core, 50-bot soak all green — tagged m3-complete)
+**M4 — Items, Inventory, Loot, Vendors** (complete: make test + bottest green
+live, ledger invariant verified against live DB — ready for m4-complete tag)
 
 ## Milestone checklists
+
+### M4 — Economy (current)
+- [x] M4 core — items, grid inventory (24), equipment (weapon/chest/accessory)
+      with stat application, ground drops (TypeDrop, 3.0 m pickup radius,
+      2-min TTL, single-claim), per-mob gold reward + loot rolls on kill,
+      vendors (buy/sell at vendor_price), audited gold ledger on every
+      mutation (mob_kill/pickup_gold/vendor_buy/vendor_sell/gm_grant) —
+      DONE: server/internal/world/economy.go + combat_sim.go killMob hooks;
+      world-layer unit tests all pass (22 s).
+- [x] M4 seeds + contentlint — DONE: shared/content/{items,drops,npcs}/ + mob
+      gold_reward; contentlint validates required keys (items/drops/npcs).
+- [x] M4 store persistence — DONE: ApplyGoldLedger (single tx, rejects
+      insufficient-gold rows), LoadCharacterItems/SaveCharacterItems,
+      CharacterSpawn gold; auth integration tests gated on AETHERIA_PG_DSN.
+- [x] M4 wire messages + codegen — DONE: PickupItem/EquipItem/UnequipItem/
+      SellItem/BuyItem/LootEvent; make content regenerated Go + GDScript.
+- [x] M4 wire dispatch + events — DONE: hub dispatch cases; LootEvent now
+      carries ok/balance and rejections emit ok=false + error; pickup reports
+      the item's instance id.
+- [x] M4 bot trader scenario — DONE: kill boar → loot ground drop → sell;
+      botclient -profile trader; wired into make bottest.
+- [x] M4 acceptance live — DONE: make bottest green (full-auth/presence/
+      roamer/chaos/chat/combat/trader); make test green incl. contentlint +
+      Godot headless; sum(gold_ledger)=415=sum(characters.gold) live.
+      Ready to tag m4-complete.
 
 ### M3 — Chat & social (current) ✅ m3-complete (tag)
 - [x] chat relay + mute — DONE: server `say` (30 m) / `world` (zone-wide)
@@ -109,16 +134,26 @@ relay/mute, combat core, 50-bot soak all green — tagged m3-complete)
 ## Blockers
 None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M4.)
 ## Next action
-M4 — items, inventory, loot, vendors (brief §212): item defs + instances,
-grid inventory, equipment slots with stat application, per-player loot
-rolls, gold, vendors (buy/sell), item pickup radius rules, gold_ledger on
-every mutation. Acceptance: transactional dupe tests, equip→DPS formula
-tests, vendor round-trip ledger consistency.
+Tag m4-complete and push. Then brief §212 next steps: inventory UI, vendor
+UI, equipment UI in Godot (client layer); M5 quests.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-12/13: M4 COMPLETE — economy core + acceptance live. make test +
+  bottest (full-auth/presence/roamer/chaos/chat/combat/trader) all green;
+  sum(gold_ledger)=415=sum(characters.gold) verified against live DB;
+  ready to tag m4-complete. This block: fixed LootEvent wire contract
+  (ok/balance populated, rejections emit ok=false+error, pickup returns the
+  item's instance id); added botclient trader scenario (kill boar → loot
+  ground drop → sell, gold 3→6) and fixed its flakiness — it targeted only
+  the single forest_boar (deterministic band-1 anchor), so it now orbits all
+  10 band-1 anchors and boar_hide drop chance is 1.0 (matches test content;
+  boar hides are a guaranteed basic drop); fixed pre-existing flaky JWT test
+  (flipping the last base64url sig char hits padding bits — flip a mid-sig
+  char instead); made ledger DB integration tests collision-proof (random
+  email/char-name suffix).
 - 2026-08-12: M3 COMPLETE — chat relay/mute + combat core + soak all green;
   make test + bottest (full-auth/presence/roamer/chaos/chat/combat) pass;
   moved m3-complete tag to HEAD. Chat relay: server say (30 m)/world
