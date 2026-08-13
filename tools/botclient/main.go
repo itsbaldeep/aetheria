@@ -37,7 +37,7 @@ var soakVerbose bool
 
 func main() {
 	addr := flag.String("addr", "wss://play.aetheria.apps.deployden.tech/ws", "gameserver websocket URL")
-	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|combat-soak|chat|chaos)")
+	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|combat-soak|chat|trader|chaos)")
 	api := flag.String("api", "http://127.0.0.1:3016", "authserver base URL (http://host:port)")
 	ctrl := flag.String("ctrl", "http://127.0.0.1:5003", "gameserver control endpoint (for combat-soak stats)")
 	n := flag.Int("n", 20, "count for batch profiles (register/roamer/chaos/combat-soak)")
@@ -66,10 +66,12 @@ func main() {
 		runCombat(*addr, *api)
 	case "combat-soak":
 		runCombatSoak(*addr, *api, *ctrl, *n, *duration)
+	case "trader":
+		runTrader(*addr, *api)
 	case "chaos":
 		runChaos(*addr, *api, *n, *duration)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer combat combat-soak chat chaos)\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer combat combat-soak chat trader chaos)\n", *profile)
 		os.Exit(2)
 	}
 }
@@ -315,6 +317,55 @@ func runCombat(wsURL, apiURL string) {
 		fatal("combat: respawned with HP=%d", res.HPAfterRespawn)
 	}
 	fmt.Printf("combat ALL PASS: boar killed (+%d XP), died, respawned HP=%d\n", res.XPgained, res.HPAfterRespawn)
+}
+
+// runTrader is the M4 acceptance: one bot kills a boar, loots the ground
+// drop, and sells it to a vendor (gold moves via the audited ledger).
+func runTrader(wsURL, apiURL string) {
+	stamp := time.Now().UTC().Format("20060102T150405")
+	suffix := "000"
+	if b, err := rand.Int(rand.Reader, big.NewInt(1000)); err == nil {
+		suffix = fmt.Sprintf("%03d", b.Int64())
+	}
+	email := fmt.Sprintf("bottrader-%s-%s@aetheria.test", stamp, suffix)
+	seed := scenarios.RegisterConfig{BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "trader-pass-8", BatchSize: 1}
+	if _, err := scenarios.RegisterBatch(seed); err != nil {
+		fatal("seed: %v", err)
+	}
+	lg, err := scenarios.Login(apiURL, email, "trader-pass-8")
+	if err != nil || lg.Token == "" {
+		fatal("login: %v", err)
+	}
+	name := "Trader" + suffix
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
+		fatal("create char: status=%d", st)
+	}
+	roster, st, _ := scenarios.ListCharacters(apiURL, lg.Token)
+	if st != 200 || len(roster) != 1 {
+		fatal("roster len=%d st=%d", len(roster), st)
+	}
+	charID := int64(roster[0]["id"].(float64))
+
+	res, err := scenarios.Trader(wsURL, lg.Token, charID, 180*time.Second, os.Stderr)
+	if err != nil {
+		fatal("trader: %v", err)
+	}
+	if res.SnapshotCount == 0 {
+		fatal("trader: no snapshots seen")
+	}
+	if !res.KilledBoar {
+		fatal("trader: boar never killed")
+	}
+	if !res.PickedUp {
+		fatal("trader: ground drop never picked up")
+	}
+	if !res.Sold {
+		fatal("trader: item never sold")
+	}
+	if res.GoldAfter <= res.GoldBefore {
+		fatal("trader: gold did not increase after sell (before=%d after=%d)", res.GoldBefore, res.GoldAfter)
+	}
+	fmt.Printf("trader ALL PASS: killed boar, picked up drop, sold item, gold %d→%d\n", res.GoldBefore, res.GoldAfter)
 }
 
 // runCombatSoak is the M3 acceptance soak (brief §11): N bots run the combat

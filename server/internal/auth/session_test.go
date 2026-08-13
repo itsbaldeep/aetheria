@@ -38,14 +38,21 @@ func TestSessionVerifyRejectsTampering(t *testing.T) {
 	m, _ := NewSessionManager("0123456789abcdef0123456789abcdef", time.Hour)
 	tok, _, _ := m.Issue(7)
 
-	// Flip the last character of the signature.
-	last := tok[len(tok)-1]
+	// Flip a character mid-signature. Flipping the *last* base64url char is
+	// unreliable: an HS256 signature is 32 bytes → 43 chars, and the final
+	// char's top 2 bits are padding, so a last-char edit often decodes to the
+	// same signature bytes and the tampered token still verifies.
+	mid := len(tok) - len(tok[len(tok)-22:])
 	flip := map[byte]byte{'a': 'b', 'b': 'a', '0': '1', '1': '0'}
-	repl, ok := flip[last]
-	if !ok {
-		repl = 'x'
+	repl, ok := flip[tok[mid]]
+	if !ok || repl == tok[mid] {
+		if tok[mid] == 'x' {
+			repl = 'y'
+		} else {
+			repl = 'x'
+		}
 	}
-	bad := tok[:len(tok)-1] + string(repl)
+	bad := tok[:mid] + string(repl) + tok[mid+1:]
 	if _, err := m.Verify(bad); err == nil {
 		t.Fatal("tampered token must not verify")
 	}

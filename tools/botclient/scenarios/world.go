@@ -43,6 +43,8 @@ type WorldBot struct {
 	SnapshotCount int
 	// Combat holds relayed CombatEvent frames read so far (combat log).
 	Combat []*aet.CombatEvent
+	// Loot holds relayed LootEvent frames read so far (M4 economy log).
+	Loot []*aet.LootEvent
 	// Chat holds relayed ChatMessage frames read so far.
 	Chat []*aet.ChatMessage
 	// LastRespawnAck is the most recent RespawnAck received.
@@ -211,6 +213,66 @@ func (b *WorldBot) KeepAlive(ctx context.Context) error {
 	return b.write(ctx, p)
 }
 
+// PickupItem asks the server to claim a ground drop by entity id (M4).
+func (b *WorldBot) PickupItem(ctx context.Context, dropID uint64) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.PickupItem",
+		Payload:     mustMarshal(&aet.PickupItem{DropEntityId: dropID}),
+	}
+	return b.write(ctx, env)
+}
+
+// EquipItem equips an inventory item by instance id (M4).
+func (b *WorldBot) EquipItem(ctx context.Context, itemID uint64) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.EquipItem",
+		Payload:     mustMarshal(&aet.EquipItem{ItemId: itemID}),
+	}
+	return b.write(ctx, env)
+}
+
+// UnequipItem unequips an equipment slot (M4).
+func (b *WorldBot) UnequipItem(ctx context.Context, slot string) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.UnequipItem",
+		Payload:     mustMarshal(&aet.UnequipItem{Slot: slot}),
+	}
+	return b.write(ctx, env)
+}
+
+// SellItem sells inventory items to a vendor (M4).
+func (b *WorldBot) SellItem(ctx context.Context, itemID uint64, qty int32) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.SellItem",
+		Payload:     mustMarshal(&aet.SellItem{ItemId: itemID, Quantity: qty}),
+	}
+	return b.write(ctx, env)
+}
+
+// BuyItem buys an item def from a vendor's stock (M4).
+func (b *WorldBot) BuyItem(ctx context.Context, vendorID, itemDefID string, qty int32) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.BuyItem",
+		Payload:     mustMarshal(&aet.BuyItem{VendorId: vendorID, ItemDefId: itemDefID, Quantity: qty}),
+	}
+	return b.write(ctx, env)
+}
+
 // StartHeartbeat runs KeepAlive on a background ticker until ctx is done,
 // then exits. The read loop may block for a long time (no snapshots when
 // nothing changes), which would otherwise starve the server's inbound read
@@ -306,8 +368,38 @@ func (b *WorldBot) ReadFrame(ctx context.Context) (*aet.Envelope, error) {
 		if err := proto.Unmarshal(env.Payload, ack); err == nil {
 			b.LastRespawnAck = ack
 		}
+	case "aetheria.LootEvent":
+		le := &aet.LootEvent{}
+		if err := proto.Unmarshal(env.Payload, le); err == nil {
+			b.Loot = append(b.Loot, le)
+		}
 	}
 	return env, nil
+}
+
+// DrainLoot returns and clears accumulated LootEvents (M4).
+func (b *WorldBot) DrainLoot() []*aet.LootEvent {
+	out := b.Loot
+	b.Loot = nil
+	return out
+}
+
+// FindDrop returns the nearest living `drop` entity in Seen (M4).
+func (b *WorldBot) FindDrop() *aet.EntityState {
+	var best *aet.EntityState
+	var bestDist float64
+	for _, e := range b.Seen {
+		if e.EntityType != "drop" {
+			continue
+		}
+		dx := float64(e.Position.X) - b.PosX
+		dz := float64(e.Position.Z) - b.PosZ
+		d := dx*dx + dz*dz
+		if best == nil || d < bestDist {
+			best, bestDist = e, d
+		}
+	}
+	return best
 }
 
 // ReadSnapshot blocks until the next WorldSnapshot envelope arrives and
