@@ -45,6 +45,18 @@ type ItemSaver interface {
 	SaveItems(ctx context.Context, charID int64, items []world.Item) error
 }
 
+// QuestLoader loads a character's persisted quest progress at EnterWorld (M5).
+// Optional: when absent, players enter with no quest state.
+type QuestLoader interface {
+	LoadQuests(ctx context.Context, charID int64) ([]world.QuestProgress, error)
+}
+
+// QuestSaver persists a character's quest progress (M5). Optional: when
+// absent, quests are only held in memory for the session.
+type QuestSaver interface {
+	SaveQuests(ctx context.Context, charID int64, quests map[string]*world.QuestProgress) error
+}
+
 // CharacterSpawn is the subset of character data the world needs to spawn.
 type CharacterSpawn struct {
 	ID     int64
@@ -216,6 +228,12 @@ func (h *Hub) leaveWorld(p *world.Player) {
 	if is, ok := h.cl.(ItemSaver); ok {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		_ = is.SaveItems(ctx, p.CharacterID, h.sim.PersistItems(p.CharacterID))
+		cancel()
+	}
+	// Persist quest progress on disconnect (M5).
+	if qs, ok := h.cl.(QuestSaver); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = qs.SaveQuests(ctx, p.CharacterID, questProgressMap(h.sim.PersistQuests(p.CharacterID)))
 		cancel()
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -445,6 +463,76 @@ func (h *Hub) dispatch(ctx context.Context, st *connState, env *aet.Envelope) bo
 			h.sendLootError(st, 0, err)
 		}
 		return false
+	case "aetheria.NpcInteract":
+		if st.session == nil {
+			h.s.Log("warn", "interact before enter world")
+			return false
+		}
+		ni := &aet.NpcInteract{}
+		if err := proto.Unmarshal(env.Payload, ni); err != nil {
+			h.s.Log("warn", "bad interact payload", "error", err)
+			return false
+		}
+		dialog, err := h.sim.NpcInteract(st.session.CharacterID, ni.NpcId)
+		if err != nil {
+			h.s.Log("info", "interact rejected", "char_id", st.session.CharacterID, "npc", ni.NpcId, "error", err)
+			h.sendQuestError(st, &aet.NpcDialogEvent{Ok: false, Error: err.Error(), NpcId: ni.NpcId})
+			return false
+		}
+		h.sendDialog(st, dialog)
+		return false
+	case "aetheria.QuestAccept":
+		if st.session == nil {
+			h.s.Log("warn", "quest accept before enter world")
+			return false
+		}
+		qa := &aet.QuestAccept{}
+		if err := proto.Unmarshal(env.Payload, qa); err != nil {
+			h.s.Log("warn", "bad quest accept payload", "error", err)
+			return false
+		}
+		if err := h.sim.AcceptQuest(st.session.CharacterID, qa.QuestId); err != nil {
+			h.s.Log("info", "quest accept rejected", "char_id", st.session.CharacterID, "quest", qa.QuestId, "error", err)
+			h.sendQuestError(st, &aet.QuestEvent{Ok: false, Error: err.Error(), QuestId: qa.QuestId})
+		}
+		return false
+	case "aetheria.QuestAbandon":
+		if st.session == nil {
+			h.s.Log("warn", "quest abandon before enter world")
+			return false
+		}
+		qd := &aet.QuestAbandon{}
+		if err := proto.Unmarshal(env.Payload, qd); err != nil {
+			h.s.Log("warn", "bad quest abandon payload", "error", err)
+			return false
+		}
+		if err := h.sim.AbandonQuest(st.session.CharacterID, qd.QuestId); err != nil {
+			h.s.Log("info", "quest abandon rejected", "char_id", st.session.CharacterID, "quest", qd.QuestId, "error", err)
+			h.sendQuestError(st, &aet.QuestEvent{Ok: false, Error: err.Error(), QuestId: qd.QuestId})
+		}
+		return false
+	case "aetheria.QuestTurnIn":
+		if st.session == nil {
+			h.s.Log("warn", "quest turn in before enter world")
+			return false
+		}
+		qt := &aet.QuestTurnIn{}
+		if err := proto.Unmarshal(env.Payload, qt); err != nil {
+			h.s.Log("warn", "bad quest turn in payload", "error", err)
+			return false
+		}
+		if err := h.sim.TurnInQuest(st.session.CharacterID, qt.QuestId); err != nil {
+			h.s.Log("info", "quest turn in rejected", "char_id", st.session.CharacterID, "quest", qt.QuestId, "error", err)
+			h.sendQuestError(st, &aet.QuestEvent{Ok: false, Error: err.Error(), QuestId: qt.QuestId})
+		}
+		return false
+	case "aetheria.QuestStatus":
+		if st.session == nil {
+			h.s.Log("warn", "quest status before enter world")
+			return false
+		}
+		h.sendQuestStatus(st)
+		return false
 	case "aetheria.LeaveWorld":
 		return true
 	default:
@@ -475,6 +563,85 @@ func (h *Hub) sendLootError(st *connState, itemID uint64, err error) {
 	case st.session.Outbox <- frame:
 	default:
 	}
+}
+
+// sendDialog pushes a successful NpcDialogEvent to the connection.
+func (h *Hub) sendDialog(st *connState, d *world.NpcDialog) {
+	ev := &aet.NpcDialogEvent{
+		Ok:              true,
+		NpcId:           d.NPCID,
+		NpcName:         d.NPCName,
+		Dialog:          d.Dialog,
+		AvailableQuests: d.Available,
+		TurninQuests:    d.Turnin,
+	}
+	h.sendQuestEvent(st, ev)
+}
+
+// sendQuestStatus pushes the character's full quest status (QuestStatus reply
+// and EnterWorld resume).
+func (h *Hub) sendQuestStatus(st *connState) {
+	states := h.sim.QuestStatus(st.session.CharacterID)
+	ev := &aet.QuestStatusEvent{Quests: make([]*aet.QuestState, 0, len(states))}
+	for _, qs := range states {
+		q := &aet.QuestState{
+			QuestId:    qs.QuestID,
+			Name:       qs.Name,
+			State:      qs.State,
+			TurninNpc:  qs.TurninNPC,
+			Objectives: make([]*aet.QuestObjectiveState, 0, len(qs.Objectives)),
+		}
+		for _, o := range qs.Objectives {
+			q.Objectives = append(q.Objectives, &aet.QuestObjectiveState{
+				Type: o.Type, Target: o.Target, TargetName: o.TargetName, Current: o.Current, Required: o.Required,
+			})
+		}
+		ev.Quests = append(ev.Quests, q)
+	}
+	h.sendQuestEvent(st, ev)
+}
+
+// sendQuestError relays a rejected quest request as ok=false (proto contract
+// §M5).
+func (h *Hub) sendQuestError(st *connState, msg proto.Message) {
+	h.sendQuestEvent(st, msg)
+}
+
+// sendQuestEvent marshals an NpcDialogEvent/QuestEvent/QuestStatusEvent and
+// pushes it into the connection's outbox (single writer).
+func (h *Hub) sendQuestEvent(st *connState, msg proto.Message) {
+	if st.session == nil || st.session.Outbox == nil {
+		return
+	}
+	payload, perr := proto.Marshal(msg)
+	if perr != nil {
+		return
+	}
+	frame, merr := proto.Marshal(&aet.Envelope{
+		Kind:        aet.Envelope_KIND_EVENT,
+		PayloadType: eventTypeFor(msg),
+		Payload:     payload,
+	})
+	if merr != nil {
+		return
+	}
+	select {
+	case st.session.Outbox <- frame:
+	default:
+	}
+}
+
+// eventTypeFor maps a wire message to its Envelope payload type.
+func eventTypeFor(m proto.Message) string {
+	switch m.(type) {
+	case *aet.NpcDialogEvent:
+		return "aetheria.NpcDialogEvent"
+	case *aet.QuestEvent:
+		return "aetheria.QuestEvent"
+	case *aet.QuestStatusEvent:
+		return "aetheria.QuestStatusEvent"
+	}
+	return "aetheria.UnknownEvent"
 }
 
 // handleEnterWorld validates the character, spawns it in the sim, and replies
@@ -540,6 +707,15 @@ func (h *Hub) handleEnterWorld(ctx context.Context, st *connState, env *aet.Enve
 			h.s.Log("warn", "item restore failed", "char_id", spawn.ID, "error", err)
 		}
 	}
+	// Restore persisted quest progress (M5). Non-fatal like items.
+	if ql, ok := h.cl.(QuestLoader); ok {
+		quests, err := ql.LoadQuests(ctx, spawn.ID)
+		if err != nil {
+			h.s.Log("warn", "quest load failed", "char_id", spawn.ID, "error", err)
+		} else if err := h.sim.RestoreQuests(spawn.ID, quests); err != nil {
+			h.s.Log("warn", "quest restore failed", "char_id", spawn.ID, "error", err)
+		}
+	}
 	st.session = p
 	h.s.Log("info", "player entered world", "char_id", spawn.ID, "zone", spawn.ZoneID)
 	h.enqueue(st, &aet.EnterWorldAck{
@@ -551,7 +727,23 @@ func (h *Hub) handleEnterWorld(ctx context.Context, st *connState, env *aet.Enve
 	})
 	// Ack is enqueued; unblock snapshot emission.
 	p.Ready.Store(true)
+	// Push the character's quest status so the client/bot can resume (M5).
+	h.sendQuestStatus(st)
 	return false
+}
+
+// questProgressMap converts a flat QuestProgress slice into the map form the
+// QuestSaver expects.
+func questProgressMap(quests []world.QuestProgress) map[string]*world.QuestProgress {
+	if len(quests) == 0 {
+		return nil
+	}
+	out := make(map[string]*world.QuestProgress, len(quests))
+	for i := range quests {
+		q := quests[i]
+		out[q.QuestID] = &q
+	}
+	return out
 }
 
 // handleMove forwards a validated MoveIntent into the sim.

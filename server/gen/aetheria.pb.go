@@ -692,6 +692,7 @@ type EntityState struct {
 	MaxHp         int64                  `protobuf:"varint,9,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	Level         int32                  `protobuf:"varint,10,opt,name=level,proto3" json:"level,omitempty"`
 	IsMoving      bool                   `protobuf:"varint,11,opt,name=is_moving,json=isMoving,proto3" json:"is_moving,omitempty"`
+	RefId         string                 `protobuf:"bytes,12,opt,name=ref_id,json=refId,proto3" json:"ref_id,omitempty"` // def id (mob def id / npc def id) for targeting
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -801,6 +802,13 @@ func (x *EntityState) GetIsMoving() bool {
 		return x.IsMoving
 	}
 	return false
+}
+
+func (x *EntityState) GetRefId() string {
+	if x != nil {
+		return x.RefId
+	}
+	return ""
 }
 
 // Server → client: one 20 Hz AOI snapshot. `entities` are new-or-changed
@@ -1666,6 +1674,643 @@ func (x *LootEvent) GetBalance() int64 {
 	return 0
 }
 
+// Client → server: talk to an NPC by its def id. Server validates proximity.
+type NpcInteract struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	NpcId         string                 `protobuf:"bytes,1,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *NpcInteract) Reset() {
+	*x = NpcInteract{}
+	mi := &file_aetheria_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NpcInteract) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NpcInteract) ProtoMessage() {}
+
+func (x *NpcInteract) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NpcInteract.ProtoReflect.Descriptor instead.
+func (*NpcInteract) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{24}
+}
+
+func (x *NpcInteract) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+// Server → client: the NPC's dialog plus the quests it offers and the active
+// quests ready to turn in here.
+type NpcDialogEvent struct {
+	state           protoimpl.MessageState `protogen:"open.v1"`
+	Ok              bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Error           string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	NpcId           string                 `protobuf:"bytes,3,opt,name=npc_id,json=npcId,proto3" json:"npc_id,omitempty"`
+	NpcName         string                 `protobuf:"bytes,4,opt,name=npc_name,json=npcName,proto3" json:"npc_name,omitempty"`
+	Dialog          string                 `protobuf:"bytes,5,opt,name=dialog,proto3" json:"dialog,omitempty"`
+	AvailableQuests []string               `protobuf:"bytes,6,rep,name=available_quests,json=availableQuests,proto3" json:"available_quests,omitempty"` // quest ids this NPC offers
+	TurninQuests    []string               `protobuf:"bytes,7,rep,name=turnin_quests,json=turninQuests,proto3" json:"turnin_quests,omitempty"`          // active quest ids complete here
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *NpcDialogEvent) Reset() {
+	*x = NpcDialogEvent{}
+	mi := &file_aetheria_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *NpcDialogEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*NpcDialogEvent) ProtoMessage() {}
+
+func (x *NpcDialogEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use NpcDialogEvent.ProtoReflect.Descriptor instead.
+func (*NpcDialogEvent) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{25}
+}
+
+func (x *NpcDialogEvent) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *NpcDialogEvent) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *NpcDialogEvent) GetNpcId() string {
+	if x != nil {
+		return x.NpcId
+	}
+	return ""
+}
+
+func (x *NpcDialogEvent) GetNpcName() string {
+	if x != nil {
+		return x.NpcName
+	}
+	return ""
+}
+
+func (x *NpcDialogEvent) GetDialog() string {
+	if x != nil {
+		return x.Dialog
+	}
+	return ""
+}
+
+func (x *NpcDialogEvent) GetAvailableQuests() []string {
+	if x != nil {
+		return x.AvailableQuests
+	}
+	return nil
+}
+
+func (x *NpcDialogEvent) GetTurninQuests() []string {
+	if x != nil {
+		return x.TurninQuests
+	}
+	return nil
+}
+
+// Client → server: accept a quest from its giver NPC.
+type QuestAccept struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestId       string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestAccept) Reset() {
+	*x = QuestAccept{}
+	mi := &file_aetheria_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestAccept) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestAccept) ProtoMessage() {}
+
+func (x *QuestAccept) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestAccept.ProtoReflect.Descriptor instead.
+func (*QuestAccept) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{26}
+}
+
+func (x *QuestAccept) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+// Client → server: abandon an active quest (progress cleared, re-acceptable).
+type QuestAbandon struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestId       string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestAbandon) Reset() {
+	*x = QuestAbandon{}
+	mi := &file_aetheria_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestAbandon) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestAbandon) ProtoMessage() {}
+
+func (x *QuestAbandon) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestAbandon.ProtoReflect.Descriptor instead.
+func (*QuestAbandon) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{27}
+}
+
+func (x *QuestAbandon) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+// Client → server: turn in a complete quest at its turn-in NPC.
+type QuestTurnIn struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestId       string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestTurnIn) Reset() {
+	*x = QuestTurnIn{}
+	mi := &file_aetheria_proto_msgTypes[28]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestTurnIn) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestTurnIn) ProtoMessage() {}
+
+func (x *QuestTurnIn) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[28]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestTurnIn.ProtoReflect.Descriptor instead.
+func (*QuestTurnIn) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{28}
+}
+
+func (x *QuestTurnIn) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+// Client → server: request the full quest status for this character.
+type QuestStatus struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestStatus) Reset() {
+	*x = QuestStatus{}
+	mi := &file_aetheria_proto_msgTypes[29]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestStatus) ProtoMessage() {}
+
+func (x *QuestStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[29]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestStatus.ProtoReflect.Descriptor instead.
+func (*QuestStatus) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{29}
+}
+
+// One objective's progress state.
+type QuestObjectiveState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Type          string                 `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`                               // kill|collect|talk
+	Target        string                 `protobuf:"bytes,2,opt,name=target,proto3" json:"target,omitempty"`                           // mob def id | item def id | npc def id
+	TargetName    string                 `protobuf:"bytes,3,opt,name=target_name,json=targetName,proto3" json:"target_name,omitempty"` // display name (mob/item/npc)
+	Current       int32                  `protobuf:"varint,4,opt,name=current,proto3" json:"current,omitempty"`
+	Required      int32                  `protobuf:"varint,5,opt,name=required,proto3" json:"required,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestObjectiveState) Reset() {
+	*x = QuestObjectiveState{}
+	mi := &file_aetheria_proto_msgTypes[30]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestObjectiveState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestObjectiveState) ProtoMessage() {}
+
+func (x *QuestObjectiveState) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[30]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestObjectiveState.ProtoReflect.Descriptor instead.
+func (*QuestObjectiveState) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{30}
+}
+
+func (x *QuestObjectiveState) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *QuestObjectiveState) GetTarget() string {
+	if x != nil {
+		return x.Target
+	}
+	return ""
+}
+
+func (x *QuestObjectiveState) GetTargetName() string {
+	if x != nil {
+		return x.TargetName
+	}
+	return ""
+}
+
+func (x *QuestObjectiveState) GetCurrent() int32 {
+	if x != nil {
+		return x.Current
+	}
+	return 0
+}
+
+func (x *QuestObjectiveState) GetRequired() int32 {
+	if x != nil {
+		return x.Required
+	}
+	return 0
+}
+
+// Server → client: a quest state change (accept/abandon/progress/turn-in).
+// `ok` false means the request was rejected (`error` explains).
+type QuestEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	QuestId       string                 `protobuf:"bytes,3,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	Name          string                 `protobuf:"bytes,4,opt,name=name,proto3" json:"name,omitempty"`
+	State         string                 `protobuf:"bytes,5,opt,name=state,proto3" json:"state,omitempty"` // active|complete|abandoned
+	TurninNpc     string                 `protobuf:"bytes,6,opt,name=turnin_npc,json=turninNpc,proto3" json:"turnin_npc,omitempty"`
+	Objectives    []*QuestObjectiveState `protobuf:"bytes,7,rep,name=objectives,proto3" json:"objectives,omitempty"`
+	XpReward      int64                  `protobuf:"varint,8,opt,name=xp_reward,json=xpReward,proto3" json:"xp_reward,omitempty"`
+	GoldReward    int64                  `protobuf:"varint,9,opt,name=gold_reward,json=goldReward,proto3" json:"gold_reward,omitempty"`
+	NewLevel      int32                  `protobuf:"varint,10,opt,name=new_level,json=newLevel,proto3" json:"new_level,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestEvent) Reset() {
+	*x = QuestEvent{}
+	mi := &file_aetheria_proto_msgTypes[31]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestEvent) ProtoMessage() {}
+
+func (x *QuestEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[31]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestEvent.ProtoReflect.Descriptor instead.
+func (*QuestEvent) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{31}
+}
+
+func (x *QuestEvent) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *QuestEvent) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *QuestEvent) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+func (x *QuestEvent) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *QuestEvent) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *QuestEvent) GetTurninNpc() string {
+	if x != nil {
+		return x.TurninNpc
+	}
+	return ""
+}
+
+func (x *QuestEvent) GetObjectives() []*QuestObjectiveState {
+	if x != nil {
+		return x.Objectives
+	}
+	return nil
+}
+
+func (x *QuestEvent) GetXpReward() int64 {
+	if x != nil {
+		return x.XpReward
+	}
+	return 0
+}
+
+func (x *QuestEvent) GetGoldReward() int64 {
+	if x != nil {
+		return x.GoldReward
+	}
+	return 0
+}
+
+func (x *QuestEvent) GetNewLevel() int32 {
+	if x != nil {
+		return x.NewLevel
+	}
+	return 0
+}
+
+// One quest's full state for a character.
+type QuestState struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	QuestId       string                 `protobuf:"bytes,1,opt,name=quest_id,json=questId,proto3" json:"quest_id,omitempty"`
+	Name          string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
+	State         string                 `protobuf:"bytes,3,opt,name=state,proto3" json:"state,omitempty"` // available|active|complete|abandoned
+	TurninNpc     string                 `protobuf:"bytes,4,opt,name=turnin_npc,json=turninNpc,proto3" json:"turnin_npc,omitempty"`
+	Objectives    []*QuestObjectiveState `protobuf:"bytes,5,rep,name=objectives,proto3" json:"objectives,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestState) Reset() {
+	*x = QuestState{}
+	mi := &file_aetheria_proto_msgTypes[32]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestState) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestState) ProtoMessage() {}
+
+func (x *QuestState) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[32]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestState.ProtoReflect.Descriptor instead.
+func (*QuestState) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{32}
+}
+
+func (x *QuestState) GetQuestId() string {
+	if x != nil {
+		return x.QuestId
+	}
+	return ""
+}
+
+func (x *QuestState) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *QuestState) GetState() string {
+	if x != nil {
+		return x.State
+	}
+	return ""
+}
+
+func (x *QuestState) GetTurninNpc() string {
+	if x != nil {
+		return x.TurninNpc
+	}
+	return ""
+}
+
+func (x *QuestState) GetObjectives() []*QuestObjectiveState {
+	if x != nil {
+		return x.Objectives
+	}
+	return nil
+}
+
+// Server → client: full quest status for this character (QuestStatus reply and
+// pushed after EnterWorld so the client/bot can resume progress).
+type QuestStatusEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Quests        []*QuestState          `protobuf:"bytes,1,rep,name=quests,proto3" json:"quests,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *QuestStatusEvent) Reset() {
+	*x = QuestStatusEvent{}
+	mi := &file_aetheria_proto_msgTypes[33]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *QuestStatusEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*QuestStatusEvent) ProtoMessage() {}
+
+func (x *QuestStatusEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[33]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use QuestStatusEvent.ProtoReflect.Descriptor instead.
+func (*QuestStatusEvent) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{33}
+}
+
+func (x *QuestStatusEvent) GetQuests() []*QuestState {
+	if x != nil {
+		return x.Quests
+	}
+	return nil
+}
+
+func (x *QuestStatusEvent) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
 var File_aetheria_proto protoreflect.FileDescriptor
 
 const file_aetheria_proto_rawDesc = "" +
@@ -1718,7 +2363,7 @@ const file_aetheria_proto_rawDesc = "" +
 	"\x06target\x18\x01 \x01(\v2\x0e.aetheria.Vec3R\x06target\x12,\n" +
 	"\tdirection\x18\x02 \x01(\v2\x0e.aetheria.Vec3R\tdirection\x12\x14\n" +
 	"\x05speed\x18\x03 \x01(\x02R\x05speed\x12\x13\n" +
-	"\x05rot_y\x18\x04 \x01(\x02R\x04rotY\"\xa9\x02\n" +
+	"\x05rot_y\x18\x04 \x01(\x02R\x04rotY\"\xc0\x02\n" +
 	"\vEntityState\x12\x1b\n" +
 	"\tentity_id\x18\x01 \x01(\x04R\bentityId\x12\x1f\n" +
 	"\ventity_type\x18\x02 \x01(\tR\n" +
@@ -1732,7 +2377,8 @@ const file_aetheria_proto_rawDesc = "" +
 	"\x06max_hp\x18\t \x01(\x03R\x05maxHp\x12\x14\n" +
 	"\x05level\x18\n" +
 	" \x01(\x05R\x05level\x12\x1b\n" +
-	"\tis_moving\x18\v \x01(\bR\bisMoving\"\xbb\x01\n" +
+	"\tis_moving\x18\v \x01(\bR\bisMoving\x12\x15\n" +
+	"\x06ref_id\x18\f \x01(\tR\x05refId\"\xbb\x01\n" +
 	"\rWorldSnapshot\x12\x12\n" +
 	"\x04tick\x18\x01 \x01(\x04R\x04tick\x12\x17\n" +
 	"\aself_id\x18\x02 \x01(\x04R\x06selfId\x12)\n" +
@@ -1794,7 +2440,61 @@ const file_aetheria_proto_rawDesc = "" +
 	"\vitem_def_id\x18\x04 \x01(\tR\titemDefId\x12\x1a\n" +
 	"\bquantity\x18\x05 \x01(\x05R\bquantity\x12\x12\n" +
 	"\x04gold\x18\x06 \x01(\x03R\x04gold\x12\x18\n" +
-	"\abalance\x18\a \x01(\x03R\abalanceB+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
+	"\abalance\x18\a \x01(\x03R\abalance\"$\n" +
+	"\vNpcInteract\x12\x15\n" +
+	"\x06npc_id\x18\x01 \x01(\tR\x05npcId\"\xd0\x01\n" +
+	"\x0eNpcDialogEvent\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x15\n" +
+	"\x06npc_id\x18\x03 \x01(\tR\x05npcId\x12\x19\n" +
+	"\bnpc_name\x18\x04 \x01(\tR\anpcName\x12\x16\n" +
+	"\x06dialog\x18\x05 \x01(\tR\x06dialog\x12)\n" +
+	"\x10available_quests\x18\x06 \x03(\tR\x0favailableQuests\x12#\n" +
+	"\rturnin_quests\x18\a \x03(\tR\fturninQuests\"(\n" +
+	"\vQuestAccept\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\")\n" +
+	"\fQuestAbandon\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\"(\n" +
+	"\vQuestTurnIn\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\"\r\n" +
+	"\vQuestStatus\"\x98\x01\n" +
+	"\x13QuestObjectiveState\x12\x12\n" +
+	"\x04type\x18\x01 \x01(\tR\x04type\x12\x16\n" +
+	"\x06target\x18\x02 \x01(\tR\x06target\x12\x1f\n" +
+	"\vtarget_name\x18\x03 \x01(\tR\n" +
+	"targetName\x12\x18\n" +
+	"\acurrent\x18\x04 \x01(\x05R\acurrent\x12\x1a\n" +
+	"\brequired\x18\x05 \x01(\x05R\brequired\"\xb0\x02\n" +
+	"\n" +
+	"QuestEvent\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x19\n" +
+	"\bquest_id\x18\x03 \x01(\tR\aquestId\x12\x12\n" +
+	"\x04name\x18\x04 \x01(\tR\x04name\x12\x14\n" +
+	"\x05state\x18\x05 \x01(\tR\x05state\x12\x1d\n" +
+	"\n" +
+	"turnin_npc\x18\x06 \x01(\tR\tturninNpc\x12=\n" +
+	"\n" +
+	"objectives\x18\a \x03(\v2\x1d.aetheria.QuestObjectiveStateR\n" +
+	"objectives\x12\x1b\n" +
+	"\txp_reward\x18\b \x01(\x03R\bxpReward\x12\x1f\n" +
+	"\vgold_reward\x18\t \x01(\x03R\n" +
+	"goldReward\x12\x1b\n" +
+	"\tnew_level\x18\n" +
+	" \x01(\x05R\bnewLevel\"\xaf\x01\n" +
+	"\n" +
+	"QuestState\x12\x19\n" +
+	"\bquest_id\x18\x01 \x01(\tR\aquestId\x12\x12\n" +
+	"\x04name\x18\x02 \x01(\tR\x04name\x12\x14\n" +
+	"\x05state\x18\x03 \x01(\tR\x05state\x12\x1d\n" +
+	"\n" +
+	"turnin_npc\x18\x04 \x01(\tR\tturninNpc\x12=\n" +
+	"\n" +
+	"objectives\x18\x05 \x03(\v2\x1d.aetheria.QuestObjectiveStateR\n" +
+	"objectives\"V\n" +
+	"\x10QuestStatusEvent\x12,\n" +
+	"\x06quests\x18\x01 \x03(\v2\x14.aetheria.QuestStateR\x06quests\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05errorB+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
 
 var (
 	file_aetheria_proto_rawDescOnce sync.Once
@@ -1809,34 +2509,44 @@ func file_aetheria_proto_rawDescGZIP() []byte {
 }
 
 var file_aetheria_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
+var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_aetheria_proto_goTypes = []any{
-	(Envelope_Kind)(0),       // 0: aetheria.Envelope.Kind
-	(SessionStatus_State)(0), // 1: aetheria.SessionStatus.State
-	(*Envelope)(nil),         // 2: aetheria.Envelope
-	(*Ping)(nil),             // 3: aetheria.Ping
-	(*Pong)(nil),             // 4: aetheria.Pong
-	(*ServerHello)(nil),      // 5: aetheria.ServerHello
-	(*SessionStatus)(nil),    // 6: aetheria.SessionStatus
-	(*Vec3)(nil),             // 7: aetheria.Vec3
-	(*EnterWorld)(nil),       // 8: aetheria.EnterWorld
-	(*EnterWorldAck)(nil),    // 9: aetheria.EnterWorldAck
-	(*MoveIntent)(nil),       // 10: aetheria.MoveIntent
-	(*EntityState)(nil),      // 11: aetheria.EntityState
-	(*WorldSnapshot)(nil),    // 12: aetheria.WorldSnapshot
-	(*LeaveWorld)(nil),       // 13: aetheria.LeaveWorld
-	(*CastSkill)(nil),        // 14: aetheria.CastSkill
-	(*AutoAttack)(nil),       // 15: aetheria.AutoAttack
-	(*CombatEvent)(nil),      // 16: aetheria.CombatEvent
-	(*ChatMessage)(nil),      // 17: aetheria.ChatMessage
-	(*RespawnRequest)(nil),   // 18: aetheria.RespawnRequest
-	(*RespawnAck)(nil),       // 19: aetheria.RespawnAck
-	(*PickupItem)(nil),       // 20: aetheria.PickupItem
-	(*EquipItem)(nil),        // 21: aetheria.EquipItem
-	(*UnequipItem)(nil),      // 22: aetheria.UnequipItem
-	(*SellItem)(nil),         // 23: aetheria.SellItem
-	(*BuyItem)(nil),          // 24: aetheria.BuyItem
-	(*LootEvent)(nil),        // 25: aetheria.LootEvent
+	(Envelope_Kind)(0),          // 0: aetheria.Envelope.Kind
+	(SessionStatus_State)(0),    // 1: aetheria.SessionStatus.State
+	(*Envelope)(nil),            // 2: aetheria.Envelope
+	(*Ping)(nil),                // 3: aetheria.Ping
+	(*Pong)(nil),                // 4: aetheria.Pong
+	(*ServerHello)(nil),         // 5: aetheria.ServerHello
+	(*SessionStatus)(nil),       // 6: aetheria.SessionStatus
+	(*Vec3)(nil),                // 7: aetheria.Vec3
+	(*EnterWorld)(nil),          // 8: aetheria.EnterWorld
+	(*EnterWorldAck)(nil),       // 9: aetheria.EnterWorldAck
+	(*MoveIntent)(nil),          // 10: aetheria.MoveIntent
+	(*EntityState)(nil),         // 11: aetheria.EntityState
+	(*WorldSnapshot)(nil),       // 12: aetheria.WorldSnapshot
+	(*LeaveWorld)(nil),          // 13: aetheria.LeaveWorld
+	(*CastSkill)(nil),           // 14: aetheria.CastSkill
+	(*AutoAttack)(nil),          // 15: aetheria.AutoAttack
+	(*CombatEvent)(nil),         // 16: aetheria.CombatEvent
+	(*ChatMessage)(nil),         // 17: aetheria.ChatMessage
+	(*RespawnRequest)(nil),      // 18: aetheria.RespawnRequest
+	(*RespawnAck)(nil),          // 19: aetheria.RespawnAck
+	(*PickupItem)(nil),          // 20: aetheria.PickupItem
+	(*EquipItem)(nil),           // 21: aetheria.EquipItem
+	(*UnequipItem)(nil),         // 22: aetheria.UnequipItem
+	(*SellItem)(nil),            // 23: aetheria.SellItem
+	(*BuyItem)(nil),             // 24: aetheria.BuyItem
+	(*LootEvent)(nil),           // 25: aetheria.LootEvent
+	(*NpcInteract)(nil),         // 26: aetheria.NpcInteract
+	(*NpcDialogEvent)(nil),      // 27: aetheria.NpcDialogEvent
+	(*QuestAccept)(nil),         // 28: aetheria.QuestAccept
+	(*QuestAbandon)(nil),        // 29: aetheria.QuestAbandon
+	(*QuestTurnIn)(nil),         // 30: aetheria.QuestTurnIn
+	(*QuestStatus)(nil),         // 31: aetheria.QuestStatus
+	(*QuestObjectiveState)(nil), // 32: aetheria.QuestObjectiveState
+	(*QuestEvent)(nil),          // 33: aetheria.QuestEvent
+	(*QuestState)(nil),          // 34: aetheria.QuestState
+	(*QuestStatusEvent)(nil),    // 35: aetheria.QuestStatusEvent
 }
 var file_aetheria_proto_depIdxs = []int32{
 	0,  // 0: aetheria.Envelope.kind:type_name -> aetheria.Envelope.Kind
@@ -1849,11 +2559,14 @@ var file_aetheria_proto_depIdxs = []int32{
 	11, // 7: aetheria.WorldSnapshot.entities:type_name -> aetheria.EntityState
 	7,  // 8: aetheria.CastSkill.aim_position:type_name -> aetheria.Vec3
 	7,  // 9: aetheria.RespawnAck.position:type_name -> aetheria.Vec3
-	10, // [10:10] is the sub-list for method output_type
-	10, // [10:10] is the sub-list for method input_type
-	10, // [10:10] is the sub-list for extension type_name
-	10, // [10:10] is the sub-list for extension extendee
-	0,  // [0:10] is the sub-list for field type_name
+	32, // 10: aetheria.QuestEvent.objectives:type_name -> aetheria.QuestObjectiveState
+	32, // 11: aetheria.QuestState.objectives:type_name -> aetheria.QuestObjectiveState
+	34, // 12: aetheria.QuestStatusEvent.quests:type_name -> aetheria.QuestState
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_aetheria_proto_init() }
@@ -1867,7 +2580,7 @@ func file_aetheria_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aetheria_proto_rawDesc), len(file_aetheria_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   24,
+			NumMessages:   34,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

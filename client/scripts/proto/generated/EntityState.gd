@@ -14,6 +14,7 @@ var hp: int = 0
 var max_hp: int = 0
 var level: int = 0
 var is_moving: bool = false
+var ref_id: String = ""
 
 func encode() -> PackedByteArray:
 	var w := ProtoWire.new()
@@ -28,6 +29,7 @@ func encode() -> PackedByteArray:
 	w.write_int64_field(9, max_hp)
 	w.write_int64_field(10, level)
 	w.write_int64_field(11, 1 if is_moving else 0)
+	w.write_string_field(12, ref_id)
 	return w.buf
 
 static func decode(data: PackedByteArray) -> EntityState:
@@ -60,6 +62,8 @@ static func decode(data: PackedByteArray) -> EntityState:
 				m.level = w.read_varint()
 			11:
 				m.is_moving = w.read_varint() != 0
+			12:
+				m.ref_id = w.read_string()
 			_:
 				w.skip(f[1])
 

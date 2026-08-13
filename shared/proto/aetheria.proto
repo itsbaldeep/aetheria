@@ -111,6 +111,7 @@ message EntityState {
   int64 max_hp = 9;
   int32 level = 10;
   bool is_moving = 11;
+  string ref_id = 12;      // def id (mob def id / npc def id) for targeting
 }
 
 // Server → client: one 20 Hz AOI snapshot. `entities` are new-or-changed
@@ -236,5 +237,87 @@ message LootEvent {
   int32 quantity = 5;
   int64 gold = 6;        // signed gold change for this mutation
   int64 balance = 7;     // player's gold after the mutation
+}
+
+// ====================== M5: quests & town NPCs ======================
+// NPCs are static world entities (entity_type "npc"). Players walk within talk
+// radius and send NpcInteract to see available/turn-in quests, then Accept,
+// progress objectives (kill/collect/talk), and TurnIn at the quest's turn-in
+// NPC. The server is authoritative: rewards are granted once via the audited
+// ledger (gold reason "quest_reward").
+
+// Client → server: talk to an NPC by its def id. Server validates proximity.
+message NpcInteract {
+  string npc_id = 1;
+}
+
+// Server → client: the NPC's dialog plus the quests it offers and the active
+// quests ready to turn in here.
+message NpcDialogEvent {
+  bool ok = 1;
+  string error = 2;
+  string npc_id = 3;
+  string npc_name = 4;
+  string dialog = 5;
+  repeated string available_quests = 6;   // quest ids this NPC offers
+  repeated string turnin_quests = 7;      // active quest ids complete here
+}
+
+// Client → server: accept a quest from its giver NPC.
+message QuestAccept {
+  string quest_id = 1;
+}
+
+// Client → server: abandon an active quest (progress cleared, re-acceptable).
+message QuestAbandon {
+  string quest_id = 1;
+}
+
+// Client → server: turn in a complete quest at its turn-in NPC.
+message QuestTurnIn {
+  string quest_id = 1;
+}
+
+// Client → server: request the full quest status for this character.
+message QuestStatus {};
+
+// One objective's progress state.
+message QuestObjectiveState {
+  string type = 1;         // kill|collect|talk
+  string target = 2;       // mob def id | item def id | npc def id
+  string target_name = 3;  // display name (mob/item/npc)
+  int32 current = 4;
+  int32 required = 5;
+}
+
+// Server → client: a quest state change (accept/abandon/progress/turn-in).
+// `ok` false means the request was rejected (`error` explains).
+message QuestEvent {
+  bool ok = 1;
+  string error = 2;
+  string quest_id = 3;
+  string name = 4;
+  string state = 5;        // active|complete|abandoned
+  string turnin_npc = 6;
+  repeated QuestObjectiveState objectives = 7;
+  int64 xp_reward = 8;
+  int64 gold_reward = 9;
+  int32 new_level = 10;
+}
+
+// One quest's full state for a character.
+message QuestState {
+  string quest_id = 1;
+  string name = 2;
+  string state = 3;        // available|active|complete|abandoned
+  string turnin_npc = 4;
+  repeated QuestObjectiveState objectives = 5;
+}
+
+// Server → client: full quest status for this character (QuestStatus reply and
+// pushed after EnterWorld so the client/bot can resume progress).
+message QuestStatusEvent {
+  repeated QuestState quests = 1;
+  string error = 2;
 }
 

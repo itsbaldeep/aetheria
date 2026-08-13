@@ -47,6 +47,7 @@ type MobDef struct {
 	XPReward    int64    `json:"xp_reward"`
 	GoldReward  int64    `json:"gold_reward"` // flat gold on kill (M4)
 	SpawnBand   int      `json:"spawn_band"`  // 1 = low-level band, 3 = high
+	Instances   int      `json:"instances"`   // copies spawned (M5; default 1)
 }
 
 // ZoneContent mirrors Zone plus a respawn shrine position.
@@ -97,13 +98,62 @@ type DropTable struct {
 	MaxQty    int32   `json:"max_qty"`
 }
 
-// NPC is a static non-hostile content definition (vendors land in M4).
+// NPC is a static non-hostile content definition (vendors land in M4, quest
+// givers land in M5). Pos is the world position the NPC stands at in its zone;
+// every NPC def spawns a static TypeNPC entity there so players can walk up and
+// talk (NpcInteract, brief §141).
 type NPC struct {
 	ID     string   `json:"id"`
 	Name   string   `json:"name"`
 	ZoneID string   `json:"zone_id"`
-	Kind   string   `json:"kind"`  // vendor|trainer|banker|...
+	Kind   string   `json:"kind"`  // vendor|questgiver|trainer|banker|...
 	Stock  []string `json:"stock"` // item def ids this vendor sells
+	Dialog string   `json:"dialog"`
+	Pos    Vec3     `json:"pos"` // world-space spawn position (x/z; y unused)
+}
+
+// QuestObjectiveType values (brief §141 objectives).
+const (
+	ObjectiveKill    = "kill"    // kill `count` of a mob def
+	ObjectiveCollect = "collect" // acquire `count` of an item def
+	ObjectiveTalk    = "talk"    // talk to `count` of an npc def
+)
+
+// QuestObjective is one step of a quest. Target depends on Type: a mob def id
+// (kill), item def id (collect), or npc def id (talk).
+type QuestObjective struct {
+	Type   string `json:"type"`
+	Target string `json:"target"`
+	Count  int32  `json:"count"`
+}
+
+// QuestRewards are granted once at turn-in. Gold flows through creditGold
+// (audited ledger, reason "quest_reward").
+type QuestRewards struct {
+	XP    int64             `json:"xp"`
+	Gold  int64             `json:"gold"`
+	Items []QuestRewardItem `json:"items"`
+}
+
+// QuestRewardItem is a reward item def id + quantity.
+type QuestRewardItem struct {
+	DefID string `json:"def_id"`
+	Qty   int32  `json:"qty"`
+}
+
+// QuestDef is one quest (brief §141, M5). Parsed from
+// shared/content/quests/<id>.json. A linear breadcrumb chain links quests via
+// NextQuest (the next quest unlocks when this one turns in).
+type QuestDef struct {
+	ID         string           `json:"id"`
+	Name       string           `json:"name"`
+	MinLevel   int32            `json:"min_level"`
+	GiverNPC   string           `json:"giver_npc"`  // npc def id that offers it
+	TurninNPC  string           `json:"turnin_npc"` // npc def id that completes it
+	Dialog     string           `json:"dialog"`     // giver flavor text
+	Objectives []QuestObjective `json:"objectives"`
+	Rewards    QuestRewards     `json:"rewards"`
+	NextQuest  string           `json:"next_quest"`
 }
 
 // Content is the parsed set of content seeds.
@@ -114,6 +164,7 @@ type Content struct {
 	Items  map[string]*ItemDef
 	Drops  []*DropTable
 	NPCs   map[string]*NPC
+	Quests map[string]*QuestDef
 }
 
 // LoadContent reads every *.json file under shared/content/<kind>/ and
@@ -126,6 +177,7 @@ func LoadContent(root string) (*Content, error) {
 		Zones:  map[string]*ZoneContent{},
 		Items:  map[string]*ItemDef{},
 		NPCs:   map[string]*NPC{},
+		Quests: map[string]*QuestDef{},
 	}
 	if err := loadDir(filepath.Join(root, "skills"), c.Skills); err != nil {
 		return nil, err
@@ -140,6 +192,9 @@ func LoadContent(root string) (*Content, error) {
 		return nil, err
 	}
 	if err := loadDir(filepath.Join(root, "npcs"), c.NPCs); err != nil {
+		return nil, err
+	}
+	if err := loadDir(filepath.Join(root, "quests"), c.Quests); err != nil {
 		return nil, err
 	}
 	if err := loadDropDir(filepath.Join(root, "drops"), c); err != nil {
@@ -219,6 +274,8 @@ func entryID(v any) string {
 	case ItemDef:
 		return t.ID
 	case NPC:
+		return t.ID
+	case QuestDef:
 		return t.ID
 	}
 	return ""

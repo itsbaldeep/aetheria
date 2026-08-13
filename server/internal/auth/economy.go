@@ -6,6 +6,7 @@ package auth
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
@@ -141,6 +142,62 @@ func (s *Store) SaveCharacterItems(ctx context.Context, charID int64, items []wo
 			 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 			charID, container, slot, it.DefID, it.Qty, it.Bound, it.Stats); err != nil {
 			return fmt.Errorf("auth: items insert: %w", err)
+		}
+	}
+	return tx.Commit(ctx)
+}
+
+// LoadCharacterQuests loads a character's quest progress (M5) from
+// character_quests (state + objective counts JSONB).
+func (s *Store) LoadCharacterQuests(ctx context.Context, charID int64) ([]world.QuestProgress, error) {
+	rows, err := s.pool.Query(ctx,
+		`SELECT quest_id, state, COALESCE(progress, '{}'::jsonb)
+		 FROM character_quests WHERE char_id = $1 ORDER BY quest_id`, charID)
+	if err != nil {
+		return nil, fmt.Errorf("auth: load quests: %w", err)
+	}
+	defer rows.Close()
+	var quests []world.QuestProgress
+	for rows.Next() {
+		var qp world.QuestProgress
+		var progress []byte
+		if err := rows.Scan(&qp.QuestID, &qp.State, &progress); err != nil {
+			return nil, fmt.Errorf("auth: scan quest: %w", err)
+		}
+		if len(progress) > 0 {
+			if err := json.Unmarshal(progress, &qp.Counts); err != nil {
+				return nil, fmt.Errorf("auth: quest progress json: %w", err)
+			}
+		}
+		quests = append(quests, qp)
+	}
+	return quests, rows.Err()
+}
+
+// SaveCharacterQuests replaces a character's quest progress in one transaction
+// (delete + upsert). progress JSONB holds the per-objective counts array.
+func (s *Store) SaveCharacterQuests(ctx context.Context, charID int64, quests map[string]*world.QuestProgress) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("auth: quests begin: %w", err)
+	}
+	defer tx.Rollback(ctx)
+
+	if _, err := tx.Exec(ctx, `DELETE FROM character_quests WHERE char_id = $1`, charID); err != nil {
+		return fmt.Errorf("auth: quests delete: %w", err)
+	}
+	for qid, qp := range quests {
+		progress, err := json.Marshal(qp.Counts)
+		if err != nil {
+			return fmt.Errorf("auth: quest progress marshal: %w", err)
+		}
+		if _, err := tx.Exec(ctx,
+			`INSERT INTO character_quests (char_id, quest_id, state, progress)
+			 VALUES ($1, $2, $3, $4)
+			 ON CONFLICT (char_id, quest_id) DO UPDATE
+			   SET state = EXCLUDED.state, progress = EXCLUDED.progress`,
+			charID, qid, qp.State, progress); err != nil {
+			return fmt.Errorf("auth: quests insert: %w", err)
 		}
 	}
 	return tx.Commit(ctx)
