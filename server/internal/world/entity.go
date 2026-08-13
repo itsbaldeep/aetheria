@@ -32,6 +32,9 @@ type Entity struct {
 	MaxHP  int64
 	Level  int32
 	Moving bool
+	// RefID is the content def id this entity instantiates (mob def id / npc
+	// def id), surfaced on the wire so clients/bots can target by def (M5).
+	RefID string
 
 	// AOI bookkeeping: the grid cell this entity currently lives in.
 	cell *cellKey
@@ -55,6 +58,7 @@ func (e *Entity) State() *aet.EntityState {
 		MaxHp:    e.MaxHP,
 		Level:    e.Level,
 		IsMoving: e.Moving,
+		RefId:    e.RefID,
 	}
 }
 
@@ -74,6 +78,9 @@ type Player struct {
 	// Economy (M4): grid inventory (nil = empty slot) + equipment by slot.
 	Inventory []*Item
 	Equipment map[string]*Item
+
+	// Quests (M5): quest id → progress. Nil until loaded/spawned.
+	Quests map[string]*QuestProgress
 
 	// Shield absorbs damage (mana_shield / defensive buffs).
 	Shield int64

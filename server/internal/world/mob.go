@@ -53,6 +53,7 @@ func NewMob(def *MobDef, id uint64, pos Vec3) *Mob {
 			HP:    def.HP,
 			MaxHP: def.HP,
 			Level: int32(def.Level),
+			RefID: def.ID,
 		},
 		DefID:          def.ID,
 		spawn:          pos,

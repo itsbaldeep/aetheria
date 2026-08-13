@@ -349,6 +349,8 @@ func (s *Sim) killMob(m *Mob, killer *Player, now time.Time) {
 		s.creditGold(killer, def.GoldReward, "mob_kill")
 	}
 	s.rollLoot(m.DefID, m.Pos, m.Zone)
+	// Quest kill objectives (M5).
+	s.killHook(killer, m.DefID)
 }
 
 // grantXP awards a mob's XP to a player and handles level-ups.
@@ -609,6 +611,10 @@ func eventTypeFor(m proto.Message) string {
 		return "aetheria.ChatMessage"
 	case *aet.LootEvent:
 		return "aetheria.LootEvent"
+	case *aet.QuestEvent:
+		return "aetheria.QuestEvent"
+	case *aet.NpcDialogEvent:
+		return "aetheria.NpcDialogEvent"
 	}
 	return "aetheria.UnknownEvent"
 }

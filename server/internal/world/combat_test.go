@@ -498,4 +498,42 @@ func TestLoadContentFromDisk(t *testing.T) {
 	if _, ok := c.Mobs["ashmaw"]; !ok {
 		t.Fatal("missing ashmaw")
 	}
+	// M5 seeds: the 15-quest Havenport chain and its NPCs must load.
+	if len(c.Quests) != 15 {
+		t.Fatalf("quests = %d, want 15", len(c.Quests))
+	}
+	for _, id := range []string{
+		"q_welcome", "q_boar_pests", "q_hide_collector", "q_wolf_threat",
+		"q_rat_plague", "q_thorn_clearing", "q_gear_up", "q_hound_hunt",
+		"q_brute_force", "q_wraith_warden", "q_magma_stopper",
+		"q_lava_crawler_clear", "q_ashmaw_fang", "q_field_report", "q_hero_welcome",
+	} {
+		if _, ok := c.Quests[id]; !ok {
+			t.Fatalf("missing quest %s", id)
+		}
+	}
+	// Chain integrity: every next_quest is a defined quest.
+	for id, q := range c.Quests {
+		if q.NextQuest == "" {
+			continue
+		}
+		if _, ok := c.Quests[q.NextQuest]; !ok {
+			t.Fatalf("quest %s next_quest %q undefined", id, q.NextQuest)
+		}
+		if q.GiverNPC == "" || q.TurninNPC == "" {
+			t.Fatalf("quest %s missing giver/turnin npc", id)
+		}
+		if _, ok := c.NPCs[q.GiverNPC]; !ok {
+			t.Fatalf("quest %s giver %q undefined", id, q.GiverNPC)
+		}
+		if _, ok := c.NPCs[q.TurninNPC]; !ok {
+			t.Fatalf("quest %s turnin %q undefined", id, q.TurninNPC)
+		}
+	}
+	if _, ok := c.NPCs["aldric_questgiver"]; !ok {
+		t.Fatal("missing aldric_questgiver")
+	}
+	if _, ok := c.NPCs["vendor_maren"]; !ok {
+		t.Fatal("missing vendor_maren")
+	}
 }

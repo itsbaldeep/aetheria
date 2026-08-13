@@ -71,6 +71,13 @@ type Sim struct {
 	dropTables []*DropTable
 	vendors    map[string]*NPC
 
+	// Quests (M5): quest defs by id.
+	questDefs map[string]*QuestDef
+	// npcEntities (M5): static NPC entities by npc def id, spawned in the grid
+	// so players can walk up and talk (NpcInteract). Vendors stay in vendors
+	// (stock lookup); these are the physical world presences.
+	npcEntities map[string]*Entity
+
 	// Ground drops by drop entity id (M4).
 	drops map[uint64]*Drop
 
@@ -93,6 +100,10 @@ type Sim struct {
 	// SaveLedger flushes pending gold ledger entries to the DB (M4). Entries
 	// are drained in a batch by FlushGoldLedger (timer + disconnect).
 	SaveLedger func(ctx context.Context, entries []LedgerEntry) error
+
+	// SaveQuests persists a player's quest state (M5). Called on quest
+	// mutation; nil disables persistence (tests).
+	SaveQuests func(ctx context.Context, charID int64, quests map[string]*QuestProgress) error
 
 	// Event pushes a combat/chat event frame to a connection's outbox.
 	// Set by the wire layer so the sim doesn't depend on it.
@@ -119,6 +130,7 @@ type Options struct {
 	SavePos      func(ctx context.Context, charID int64, pos Vec3) error
 	SaveChar     func(ctx context.Context, charID int64, level int32, xp, hp, mp int64) error
 	SaveLedger   func(ctx context.Context, entries []LedgerEntry) error
+	SaveQuests   func(ctx context.Context, charID int64, quests map[string]*QuestProgress) error
 	OutboxBuffer int
 	// MobSpawn is a hook to place mobs (spawner). If nil, no mobs spawn.
 	MobSpawn func(s *Sim)
@@ -145,12 +157,15 @@ func New(opts Options) *Sim {
 		mobDefs:      make(map[string]*MobDef),
 		itemDefs:     make(map[string]*ItemDef),
 		vendors:      make(map[string]*NPC),
+		questDefs:    make(map[string]*QuestDef),
+		npcEntities:  make(map[string]*Entity),
 		drops:        make(map[uint64]*Drop),
 		muted:        make(map[int64]bool),
 		shrines:      make(map[string]Vec3),
 		SavePos:      opts.SavePos,
 		SaveChar:     opts.SaveChar,
 		SaveLedger:   opts.SaveLedger,
+		SaveQuests:   opts.SaveQuests,
 		logf:         opts.Logf,
 		tick:         opts.Tick,
 		outboxBuffer: opts.OutboxBuffer,
@@ -175,6 +190,10 @@ func New(opts Options) *Sim {
 		s.dropTables = append(s.dropTables, opts.Content.Drops...)
 		for id, npc := range opts.Content.NPCs {
 			s.vendors[id] = npc
+			s.spawnNPC(npc)
+		}
+		for id, qd := range opts.Content.Quests {
+			s.questDefs[id] = qd
 		}
 	}
 	if opts.MobSpawn != nil {

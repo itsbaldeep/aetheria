@@ -94,6 +94,7 @@ func (s *Sim) PickupItem(charID int64, dropID uint64) error {
 		if !s.addItem(p, it) {
 			return errors.New("inventory full")
 		}
+		s.collectHook(p, d.DefID, it.Qty)
 		s.sendEvent(p, lootEvent(&Drop{Entity: Entity{ID: it.ID}, DefID: d.DefID}, 0, it.Qty, p.Gold))
 	}
 	delete(s.drops, dropID)
@@ -213,6 +214,7 @@ func (s *Sim) BuyItem(charID int64, vendorID, itemDefID string, qty int32) error
 		return errors.New("inventory full")
 	}
 	s.creditGold(p, -cost, "vendor_buy")
+	s.collectHook(p, itemDefID, qty)
 	s.sendEvent(p, lootEvent(&Drop{Entity: Entity{ID: 0}}, -cost, qty, p.Gold))
 	return nil
 }

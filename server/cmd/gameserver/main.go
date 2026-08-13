@@ -163,6 +163,16 @@ func (c *charLoader) SaveItems(ctx context.Context, charID int64, items []world.
 	return c.store.SaveCharacterItems(ctx, charID, items)
 }
 
+// LoadQuests satisfies wire.QuestLoader (M5).
+func (c *charLoader) LoadQuests(ctx context.Context, charID int64) ([]world.QuestProgress, error) {
+	return c.store.LoadCharacterQuests(ctx, charID)
+}
+
+// SaveQuests satisfies wire.QuestSaver (M5).
+func (c *charLoader) SaveQuests(ctx context.Context, charID int64, quests map[string]*world.QuestProgress) error {
+	return c.store.SaveCharacterQuests(ctx, charID, quests)
+}
+
 // ledgerFlusher adapts the auth store's transactional gold ledger into the
 // world's SaveLedger hook. Rejected entries (insufficient gold) are logged.
 func ledgerFlusher(s *platform.Service, store *auth.Store) func(ctx context.Context, entries []world.LedgerEntry) error {

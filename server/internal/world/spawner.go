@@ -27,10 +27,11 @@ var SpawnBands = map[int][]Vec3{
 }
 
 // SpawnMobs populates the sim's mobs map from content defs. Each mob def gets
-// one instance at a banded spawn point (count = number of positions for that
-// band modulo). Positions are assigned round-robin so mobs are spread out.
-// Defs are iterated in sorted-id order so spawn placement is stable across
-// restarts (a map iteration order would randomize where band-1 mobs land).
+// `instances` copies (default 1) at banded spawn points (count = number of
+// positions for that band modulo). Positions are assigned round-robin so mobs
+// are spread out. Defs are iterated in sorted-id order so spawn placement is
+// stable across restarts (a map iteration order would randomize where band-1
+// mobs land).
 func SpawnMobs(s *Sim, content *Content, bands map[int][]Vec3) {
 	positions := map[int][]Vec3{}
 	if bands != nil {
@@ -50,12 +51,18 @@ func SpawnMobs(s *Sim, content *Content, bands map[int][]Vec3) {
 		if len(locs) == 0 {
 			continue
 		}
-		pos := locs[len(s.mobs)%len(locs)]
-		// Slight deterministic jitter so same-band mobs don't stack.
-		j := float64(len(s.mobs) % 5)
-		pos.X += math.Mod(j*7, 12) - 6
-		pos.Z += math.Mod(j*11, 12) - 6
-		s.spawnMob(def, pos)
+		n := def.Instances
+		if n < 1 {
+			n = 1
+		}
+		for i := 0; i < n; i++ {
+			pos := locs[len(s.mobs)%len(locs)]
+			// Slight deterministic jitter so same-band mobs don't stack.
+			j := float64(len(s.mobs) % 5)
+			pos.X += math.Mod(j*7, 12) - 6
+			pos.Z += math.Mod(j*11, 12) - 6
+			s.spawnMob(def, pos)
+		}
 	}
 }
 
