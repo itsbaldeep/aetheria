@@ -1,0 +1,8 @@
+{
+  "id": "leather_vest",
+  "name": "Leather Vest",
+  "type": "armor",
+  "stackable": false,
+  "base_stats": { "defense": 3 },
+  "vendor_price": 15
+}

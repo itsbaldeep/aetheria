@@ -1,0 +1,8 @@
+{
+  "id": "iron_sword",
+  "name": "Iron Sword",
+  "type": "weapon",
+  "stackable": false,
+  "base_stats": { "attack": 5 },
+  "vendor_price": 25
+}

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"math/rand"
 	"sort"
 	"sync"
 	"time"
@@ -52,6 +53,8 @@ type Sim struct {
 	nextID uint64
 	zones  map[string]*Zone
 	grid   *Grid
+	// nextItemID is the world-local item instance id counter (M4).
+	nextItemID uint64
 	// players by character id.
 	players map[int64]*Player
 	// byEntity for O(1) lookups on disconnect.
@@ -63,6 +66,20 @@ type Sim struct {
 	skills  map[string]*SkillDef
 	mobDefs map[string]*MobDef
 
+	// Economy definitions (M4): item defs by id, drop tables, vendors by id.
+	itemDefs   map[string]*ItemDef
+	dropTables []*DropTable
+	vendors    map[string]*NPC
+
+	// Ground drops by drop entity id (M4).
+	drops map[uint64]*Drop
+
+	// Audited gold ledger: signed deltas per character. Sum == world gold.
+	ledger []LedgerEntry
+
+	// rng sources loot rolls. Guarded by mu (all rolls happen under the lock).
+	rng *rand.Rand
+
 	// Muted characters by character id (chat mute).
 	muted map[int64]bool
 
@@ -73,6 +90,9 @@ type Sim struct {
 	SavePos func(ctx context.Context, charID int64, pos Vec3) error
 	// SaveChar persists level/xp/hp/mp for a character.
 	SaveChar func(ctx context.Context, charID int64, level int32, xp, hp, mp int64) error
+	// SaveLedger flushes pending gold ledger entries to the DB (M4). Entries
+	// are drained in a batch by FlushGoldLedger (timer + disconnect).
+	SaveLedger func(ctx context.Context, entries []LedgerEntry) error
 
 	// Event pushes a combat/chat event frame to a connection's outbox.
 	// Set by the wire layer so the sim doesn't depend on it.
@@ -93,11 +113,12 @@ type Sim struct {
 // Options configures the simulation.
 type Options struct {
 	Zones        []*Zone
-	Content      *Content // skills + mob defs + shrines (M3)
+	Content      *Content // skills + mob defs + shrines (M3) + economy (M4)
 	Logf         func(format string, args ...any)
 	Tick         time.Duration
 	SavePos      func(ctx context.Context, charID int64, pos Vec3) error
 	SaveChar     func(ctx context.Context, charID int64, level int32, xp, hp, mp int64) error
+	SaveLedger   func(ctx context.Context, entries []LedgerEntry) error
 	OutboxBuffer int
 	// MobSpawn is a hook to place mobs (spawner). If nil, no mobs spawn.
 	MobSpawn func(s *Sim)
@@ -122,13 +143,18 @@ func New(opts Options) *Sim {
 		mobs:         make(map[uint64]*Mob),
 		skills:       make(map[string]*SkillDef),
 		mobDefs:      make(map[string]*MobDef),
+		itemDefs:     make(map[string]*ItemDef),
+		vendors:      make(map[string]*NPC),
+		drops:        make(map[uint64]*Drop),
 		muted:        make(map[int64]bool),
 		shrines:      make(map[string]Vec3),
 		SavePos:      opts.SavePos,
 		SaveChar:     opts.SaveChar,
+		SaveLedger:   opts.SaveLedger,
 		logf:         opts.Logf,
 		tick:         opts.Tick,
 		outboxBuffer: opts.OutboxBuffer,
+		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
 	}
 	for _, z := range opts.Zones {
 		s.zones[z.ID] = z
@@ -142,6 +168,13 @@ func New(opts Options) *Sim {
 		}
 		for zid, zc := range opts.Content.Zones {
 			s.shrines[zid] = zc.Shrine
+		}
+		for id, idf := range opts.Content.Items {
+			s.itemDefs[id] = idf
+		}
+		s.dropTables = append(s.dropTables, opts.Content.Drops...)
+		for id, npc := range opts.Content.NPCs {
+			s.vendors[id] = npc
 		}
 	}
 	if opts.MobSpawn != nil {
@@ -362,6 +395,7 @@ func (s *Sim) tickOnce(now time.Time) {
 	for _, m := range s.mobs {
 		s.tickMob(m, now)
 	}
+	s.sweepDrops(now)
 	for _, p := range s.players {
 		s.emitSnapshot(p)
 	}

@@ -15,6 +15,7 @@ const (
 	TypePlayer = "player"
 	TypeNPC    = "npc"
 	TypeMob    = "mob"
+	TypeDrop   = "drop"
 )
 
 // Entity is one simulated object. Only the simulation goroutine mutates it;
@@ -68,6 +69,11 @@ type Player struct {
 	MP          int64
 	MaxMP       int64
 	XP          int64
+	Gold        int64
+
+	// Economy (M4): grid inventory (nil = empty slot) + equipment by slot.
+	Inventory []*Item
+	Equipment map[string]*Item
 
 	// Shield absorbs damage (mana_shield / defensive buffs).
 	Shield int64

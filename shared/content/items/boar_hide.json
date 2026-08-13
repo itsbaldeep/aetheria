@@ -1,0 +1,8 @@
+{
+  "id": "boar_hide",
+  "name": "Boar Hide",
+  "type": "misc",
+  "stackable": true,
+  "base_stats": {},
+  "vendor_price": 3
+}

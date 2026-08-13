@@ -1,0 +1,7 @@
+{
+  "id": "vendor_maren",
+  "name": "Maren the Merchant",
+  "zone_id": "havenport",
+  "kind": "vendor",
+  "stock": ["iron_sword", "leather_vest", "minor_potion", "boar_hide"]
+}

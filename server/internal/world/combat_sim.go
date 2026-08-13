@@ -288,7 +288,7 @@ func (s *Sim) damageEntity(attacker *Player, victim *Entity, def *SkillDef, now 
 		if m == nil || !m.alive {
 			return
 		}
-		res := RollDamage(def.Power, attacker.Level, m.Level)
+		res := RollDamage(def.Power+attacker.Attack(), attacker.Level, m.Level)
 		m.HP -= res.Damage
 		m.threat[attacker.ID] += res.Damage
 		// Aggro: target the threat leader.
@@ -308,6 +308,13 @@ func (s *Sim) damageEntity(attacker *Player, victim *Entity, def *SkillDef, now 
 			return
 		}
 		res := RollDamage(def.Power, attacker.Level, tp.Level)
+		// Equipment defense mitigates incoming damage (M4).
+		if d := tp.Defense(); d > 0 {
+			res.Damage -= d
+			if res.Damage < 1 {
+				res.Damage = 1
+			}
+		}
 		if tp.Shield > 0 {
 			res.Damage, tp.Shield = ApplyShield(res.Damage, tp.Shield)
 		}
@@ -336,6 +343,12 @@ func (s *Sim) killMob(m *Mob, killer *Player, now time.Time) {
 	// XP to the killer (and anyone who hit the mob in the last 10 s — simple:
 	// full XP to killer for M3).
 	s.grantXP(killer, m)
+	// Gold + loot rolls (M4): flat gold credits the killer via the ledger;
+	// drop tables for this mob def spawn ground drops at its position.
+	if def := s.mobDefs[m.DefID]; def != nil && def.GoldReward > 0 {
+		s.creditGold(killer, def.GoldReward, "mob_kill")
+	}
+	s.rollLoot(m.DefID, m.Pos, m.Zone)
 }
 
 // grantXP awards a mob's XP to a player and handles level-ups.
@@ -594,6 +607,8 @@ func eventTypeFor(m proto.Message) string {
 		return "aetheria.CombatEvent"
 	case *aet.ChatMessage:
 		return "aetheria.ChatMessage"
+	case *aet.LootEvent:
+		return "aetheria.LootEvent"
 	}
 	return "aetheria.UnknownEvent"
 }

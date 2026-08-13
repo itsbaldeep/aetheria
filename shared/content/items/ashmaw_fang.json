@@ -1,0 +1,8 @@
+{
+  "id": "ashmaw_fang",
+  "name": "Ashmaw Fang",
+  "type": "weapon",
+  "stackable": false,
+  "base_stats": { "attack": 8 },
+  "vendor_price": 60
+}

@@ -7,6 +7,7 @@
   "aggro_radius": 8,
   "leash_radius": 20,
   "skills": ["mob_bite", "mob_gore"],
+  "gold_reward": 3,
   "xp_reward": 20,
   "spawn_band": 1
 }

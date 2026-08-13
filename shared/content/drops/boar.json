@@ -1,0 +1,8 @@
+{
+  "id": "drop_boar_hide",
+  "mob_def_id": "forest_boar",
+  "item_def_id": "boar_hide",
+  "chance": 1.0,
+  "min_qty": 1,
+  "max_qty": 2
+}

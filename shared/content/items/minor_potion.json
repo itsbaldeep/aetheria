@@ -1,0 +1,8 @@
+{
+  "id": "minor_potion",
+  "name": "Minor Healing Potion",
+  "type": "consumable",
+  "stackable": true,
+  "base_stats": { "heal": 20 },
+  "vendor_price": 5
+}

@@ -45,7 +45,8 @@ type MobDef struct {
 	LeashRadius float64  `json:"leash_radius"`
 	Skills      []string `json:"skills"`
 	XPReward    int64    `json:"xp_reward"`
-	SpawnBand   int      `json:"spawn_band"` // 1 = low-level band, 3 = high
+	GoldReward  int64    `json:"gold_reward"` // flat gold on kill (M4)
+	SpawnBand   int      `json:"spawn_band"`  // 1 = low-level band, 3 = high
 }
 
 // ZoneContent mirrors Zone plus a respawn shrine position.
@@ -60,11 +61,59 @@ type ZoneContent struct {
 	Shrine Vec3    `json:"shrine"`
 }
 
+// ItemDef is one item template (brief §212, M4). Parsed from
+// shared/content/items/<id>.json. base_stats keys: attack, defense (others
+// apply to later milestones). vendor_price is the buy/sell gold value.
+type ItemDef struct {
+	ID          string           `json:"id"`
+	Name        string           `json:"name"`
+	Type        string           `json:"type"` // weapon|armor|accessory|consumable|misc
+	Stackable   bool             `json:"stackable"`
+	BaseStats   map[string]int64 `json:"base_stats"`
+	VendorPrice int64            `json:"vendor_price"`
+}
+
+// equipmentSlot maps an item type to the equipment slot it occupies.
+func equipmentSlot(itemType string) string {
+	switch itemType {
+	case "weapon":
+		return "weapon"
+	case "armor":
+		return "chest"
+	case "accessory":
+		return "accessory"
+	}
+	return "" // not equippable
+}
+
+// DropTable is one loot row (brief §212). Chance is 0..1; qty is uniform in
+// [min_qty, max_qty]. Parsed from shared/content/drops/<id>.json.
+type DropTable struct {
+	ID        string  `json:"id"`
+	MobDefID  string  `json:"mob_def_id"`
+	ItemDefID string  `json:"item_def_id"`
+	Chance    float64 `json:"chance"`
+	MinQty    int32   `json:"min_qty"`
+	MaxQty    int32   `json:"max_qty"`
+}
+
+// NPC is a static non-hostile content definition (vendors land in M4).
+type NPC struct {
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	ZoneID string   `json:"zone_id"`
+	Kind   string   `json:"kind"`  // vendor|trainer|banker|...
+	Stock  []string `json:"stock"` // item def ids this vendor sells
+}
+
 // Content is the parsed set of content seeds.
 type Content struct {
 	Skills map[string]*SkillDef
 	Mobs   map[string]*MobDef
 	Zones  map[string]*ZoneContent
+	Items  map[string]*ItemDef
+	Drops  []*DropTable
+	NPCs   map[string]*NPC
 }
 
 // LoadContent reads every *.json file under shared/content/<kind>/ and
@@ -75,6 +124,8 @@ func LoadContent(root string) (*Content, error) {
 		Skills: map[string]*SkillDef{},
 		Mobs:   map[string]*MobDef{},
 		Zones:  map[string]*ZoneContent{},
+		Items:  map[string]*ItemDef{},
+		NPCs:   map[string]*NPC{},
 	}
 	if err := loadDir(filepath.Join(root, "skills"), c.Skills); err != nil {
 		return nil, err
@@ -85,10 +136,47 @@ func LoadContent(root string) (*Content, error) {
 	if err := loadDir(filepath.Join(root, "zones"), c.Zones); err != nil {
 		return nil, err
 	}
+	if err := loadDir(filepath.Join(root, "items"), c.Items); err != nil {
+		return nil, err
+	}
+	if err := loadDir(filepath.Join(root, "npcs"), c.NPCs); err != nil {
+		return nil, err
+	}
+	if err := loadDropDir(filepath.Join(root, "drops"), c); err != nil {
+		return nil, err
+	}
 	if len(c.Skills) == 0 || len(c.Mobs) == 0 || len(c.Zones) == 0 {
 		return nil, fmt.Errorf("content: empty seed dirs (root=%s)", root)
 	}
 	return c, nil
+}
+
+// loadDropDir parses the drops/ directory: a plain list (each file holds one
+// table object). Missing dir is tolerated for early checkouts; an empty one
+// is a fatal error once the dir exists.
+func loadDropDir(dir string, c *Content) error {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return nil // drops not seeded yet (M4 accepts empty during dev)
+	}
+	for _, e := range entries {
+		if e.IsDir() || !strings.HasSuffix(e.Name(), ".json") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, e.Name()))
+		if err != nil {
+			return fmt.Errorf("content: read %s: %w", e.Name(), err)
+		}
+		var t DropTable
+		if err := json.Unmarshal(data, &t); err != nil {
+			return fmt.Errorf("content: %s: %w", e.Name(), err)
+		}
+		if t.ID == "" {
+			return fmt.Errorf("content: %s: missing id", e.Name())
+		}
+		c.Drops = append(c.Drops, &t)
+	}
+	return nil
 }
 
 func loadDir[T any](dir string, out map[string]*T) error {
@@ -127,6 +215,10 @@ func entryID(v any) string {
 	case MobDef:
 		return t.ID
 	case ZoneContent:
+		return t.ID
+	case ItemDef:
+		return t.ID
+	case NPC:
 		return t.ID
 	}
 	return ""
