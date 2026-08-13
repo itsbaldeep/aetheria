@@ -1,0 +1,13 @@
+{
+  "id": "q_welcome",
+  "name": "A Warm Welcome",
+  "min_level": 1,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "Welcome to Havenport, traveler. The fields beyond our walls teem with beasts — the forest boar most of all. Speak with me again when you're ready for work.",
+  "objectives": [
+    { "type": "talk", "target": "aldric_questgiver", "count": 1 }
+  ],
+  "rewards": { "xp": 20, "gold": 5, "items": [] },
+  "next_quest": "q_boar_pests"
+}

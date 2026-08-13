@@ -1,0 +1,13 @@
+{
+  "id": "q_wolf_threat",
+  "name": "The Wolf Threat",
+  "min_level": 1,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "Ember wolves have been picking off our herds. Thin them out — three should teach the pack to keep its distance.",
+  "objectives": [
+    { "type": "kill", "target": "ember_wolf", "count": 3 }
+  ],
+  "rewards": { "xp": 60, "gold": 15, "items": [] },
+  "next_quest": "q_rat_plague"
+}

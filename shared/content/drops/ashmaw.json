@@ -2,7 +2,7 @@
   "id": "drop_ashmaw_fang",
   "mob_def_id": "ashmaw",
   "item_def_id": "ashmaw_fang",
-  "chance": 0.25,
+  "chance": 1.0,
   "min_qty": 1,
   "max_qty": 1
 }

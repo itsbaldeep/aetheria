@@ -1,0 +1,14 @@
+{
+  "id": "q_ashmaw_fang",
+  "name": "The Fang of Ashmaw",
+  "min_level": 7,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "The great Ashmaw guards the ember fields' heart. Slay it and bring me one of its fangs — a trophy worthy of the warden's hall.",
+  "objectives": [
+    { "type": "kill", "target": "ashmaw", "count": 1 },
+    { "type": "collect", "target": "ashmaw_fang", "count": 1 }
+  ],
+  "rewards": { "xp": 200, "gold": 60, "items": [] },
+  "next_quest": "q_field_report"
+}

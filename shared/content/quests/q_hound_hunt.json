@@ -1,0 +1,13 @@
+{
+  "id": "q_hound_hunt",
+  "name": "The Hound Hunt",
+  "min_level": 4,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "The ember hounds run in packs near the cinder plains. Bring back proof of three kills.",
+  "objectives": [
+    { "type": "kill", "target": "ember_hound", "count": 3 }
+  ],
+  "rewards": { "xp": 90, "gold": 25, "items": [] },
+  "next_quest": "q_brute_force"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "q_wraith_warden",
+  "name": "Wraith Warden",
+  "min_level": 5,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "Cinder wraiths drift where the old forge burned. Two of them will burn no more once you're through.",
+  "objectives": [
+    { "type": "kill", "target": "cinder_wraith", "count": 3 }
+  ],
+  "rewards": { "xp": 110, "gold": 35, "items": [] },
+  "next_quest": "q_magma_stopper"
+}

@@ -6,8 +6,12 @@
   "zone_id": "emberfield",
   "aggro_radius": 8,
   "leash_radius": 20,
-  "skills": ["mob_bite", "mob_gore"],
+  "skills": [
+    "mob_bite",
+    "mob_gore"
+  ],
   "gold_reward": 3,
   "xp_reward": 20,
-  "spawn_band": 1
+  "spawn_band": 1,
+  "instances": 4
 }

@@ -1,0 +1,13 @@
+{
+  "id": "q_hero_welcome",
+  "name": "A Hero's Welcome",
+  "min_level": 9,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "You have cleansed the fields, traveler — from the lowliest boar to the great Ashmaw itself. Havenport owes you a debt of honor. Come, accept your due.",
+  "objectives": [
+    { "type": "talk", "target": "aldric_questgiver", "count": 1 }
+  ],
+  "rewards": { "xp": 250, "gold": 100, "items": [ { "def_id": "leather_vest", "qty": 1 } ] },
+  "next_quest": ""
+}

@@ -1,0 +1,13 @@
+{
+  "id": "q_boar_pests",
+  "name": "Boar Pests",
+  "min_level": 1,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "The forest boars root through our seed stores at night. Cull three of them in the eastern woods and I'll see you're paid.",
+  "objectives": [
+    { "type": "kill", "target": "forest_boar", "count": 3 }
+  ],
+  "rewards": { "xp": 40, "gold": 10, "items": [] },
+  "next_quest": "q_hide_collector"
+}

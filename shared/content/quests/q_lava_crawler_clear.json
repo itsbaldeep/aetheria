@@ -1,0 +1,13 @@
+{
+  "id": "q_lava_crawler_clear",
+  "name": "Crawler Clear",
+  "min_level": 6,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "Lava crawlers have crept down from the ash mountains. Three crawlers cleared keeps the pass open for the mines.",
+  "objectives": [
+    { "type": "kill", "target": "lava_crawler", "count": 3 }
+  ],
+  "rewards": { "xp": 150, "gold": 50, "items": [] },
+  "next_quest": "q_ashmaw_fang"
+}

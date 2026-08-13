@@ -3,5 +3,7 @@
   "name": "Maren the Merchant",
   "zone_id": "havenport",
   "kind": "vendor",
-  "stock": ["iron_sword", "leather_vest", "minor_potion", "boar_hide"]
+  "stock": ["iron_sword", "leather_vest", "minor_potion", "boar_hide"],
+  "dialog": "Welcome to Maren's Wares! Fresh steel, sturdy leather, and a tonic for every ache. What can I do for you?",
+  "pos": { "x": -12, "y": 0, "z": 8 }
 }

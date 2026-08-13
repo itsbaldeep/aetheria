@@ -18,7 +18,7 @@ var requiredKeys = map[string][]string{
 	"items":  {"id", "name", "type", "stackable", "base_stats", "vendor_price"},
 	"mobs":   {"id", "name", "level", "hp", "zone_id"},
 	"skills": {"id", "name", "class", "rank", "kind"},
-	"quests": {"id", "name", "min_level", "objectives", "rewards"},
+	"quests": {"id", "name", "min_level", "giver_npc", "turnin_npc", "objectives", "rewards"},
 	"npcs":   {"id", "name", "zone_id", "kind"},
 	"zones":  {"id", "name", "safe"},
 	"drops":  {"id", "mob_def_id", "item_def_id", "chance"},

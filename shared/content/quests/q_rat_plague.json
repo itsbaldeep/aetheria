@@ -1,0 +1,13 @@
+{
+  "id": "q_rat_plague",
+  "name": "The Rat Plague",
+  "min_level": 2,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "Cinder rats have burrowed under the granary. Clear out three of them or the harvest is lost.",
+  "objectives": [
+    { "type": "kill", "target": "cinder_rat", "count": 3 }
+  ],
+  "rewards": { "xp": 40, "gold": 12, "items": [] },
+  "next_quest": "q_thorn_clearing"
+}

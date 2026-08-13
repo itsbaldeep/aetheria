@@ -6,7 +6,11 @@
   "zone_id": "emberfield",
   "aggro_radius": 9,
   "leash_radius": 24,
-  "skills": ["mob_claw", "mob_gore"],
+  "skills": [
+    "mob_claw",
+    "mob_gore"
+  ],
   "xp_reward": 55,
-  "spawn_band": 2
+  "spawn_band": 2,
+  "instances": 4
 }

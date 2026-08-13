@@ -1,0 +1,13 @@
+{
+  "id": "q_thorn_clearing",
+  "name": "Clearing the Thorns",
+  "min_level": 2,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "The thorn vipers have claimed the western trail. Three of them cleared means safe travel for our caravans.",
+  "objectives": [
+    { "type": "kill", "target": "thorn_viper", "count": 3 }
+  ],
+  "rewards": { "xp": 60, "gold": 15, "items": [] },
+  "next_quest": "q_gear_up"
+}

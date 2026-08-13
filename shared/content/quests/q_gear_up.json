@@ -1,0 +1,14 @@
+{
+  "id": "q_gear_up",
+  "name": "Gear Up",
+  "min_level": 3,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "vendor_maren",
+  "dialog": "You'll need better steel where you're headed. Visit Maren the Merchant, buy an iron sword, and show it to her.",
+  "objectives": [
+    { "type": "talk", "target": "vendor_maren", "count": 1 },
+    { "type": "collect", "target": "iron_sword", "count": 1 }
+  ],
+  "rewards": { "xp": 60, "gold": 0, "items": [] },
+  "next_quest": "q_hound_hunt"
+}

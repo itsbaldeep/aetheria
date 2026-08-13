@@ -1,0 +1,9 @@
+{
+  "id": "aldric_questgiver",
+  "name": "Aldric the Warden",
+  "zone_id": "havenport",
+  "kind": "questgiver",
+  "stock": [],
+  "dialog": "The town warden's eye is on you, traveler. The fields outside our walls grow restless — help us, and Havenport will remember you.",
+  "pos": { "x": 10, "y": 0, "z": -8 }
+}

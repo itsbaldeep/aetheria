@@ -1,0 +1,13 @@
+{
+  "id": "q_field_report",
+  "name": "Report to the Warden",
+  "min_level": 8,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "Return to Aldric and tell him what you saw beyond the walls. The warden keeps close counsel with those who walk the fields.",
+  "objectives": [
+    { "type": "talk", "target": "aldric_questgiver", "count": 1 }
+  ],
+  "rewards": { "xp": 80, "gold": 20, "items": [] },
+  "next_quest": "q_hero_welcome"
+}

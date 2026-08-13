@@ -1,0 +1,13 @@
+{
+  "id": "q_magma_stopper",
+  "name": "The Magma Stopper",
+  "min_level": 5,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "Magma boars wallow in the hot springs and foul our water. Two of them dealt with and the springs run clean.",
+  "objectives": [
+    { "type": "kill", "target": "magma_boar", "count": 3 }
+  ],
+  "rewards": { "xp": 120, "gold": 40, "items": [] },
+  "next_quest": "q_lava_crawler_clear"
+}

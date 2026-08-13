@@ -1,0 +1,13 @@
+{
+  "id": "q_brute_force",
+  "name": "Brute Force",
+  "min_level": 4,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "The ash brutes have claimed the quarry. Three brutes felled and the road is ours again.",
+  "objectives": [
+    { "type": "kill", "target": "ash_brute", "count": 3 }
+  ],
+  "rewards": { "xp": 100, "gold": 30, "items": [] },
+  "next_quest": "q_wraith_warden"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "q_hide_collector",
+  "name": "Hide Collector",
+  "min_level": 1,
+  "giver_npc": "aldric_questgiver",
+  "turnin_npc": "aldric_questgiver",
+  "dialog": "The tannery needs boar hide. Bring me three hides and the tannery will pay you direct.",
+  "objectives": [
+    { "type": "collect", "target": "boar_hide", "count": 3 }
+  ],
+  "rewards": { "xp": 40, "gold": 10, "items": [] },
+  "next_quest": "q_wolf_threat"
+}
