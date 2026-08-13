@@ -114,6 +114,7 @@ type CharacterSpawn struct {
 	MP     int64
 	MaxMP  int64
 	XP     int64
+	Gold   int64
 }
 
 // worldVec aliases the world package's Vec3 so the auth package stays small.
@@ -127,10 +128,10 @@ func (s *Store) LoadCharacterSpawn(ctx context.Context, accountID, charID int64)
 	err := s.pool.QueryRow(ctx,
 		`SELECT id, name, class, zone_id, pos_x, pos_y, pos_z, level, hp, mp,
 		        COALESCE((stats->>'max_hp')::bigint, 100) AS max_hp,
-		        COALESCE((stats->>'max_mp')::bigint, 50) AS max_mp, xp
+		        COALESCE((stats->>'max_mp')::bigint, 50) AS max_mp, xp, gold
 		 FROM characters
 		 WHERE id = $1 AND account_id = $2 AND deleted_at IS NULL`,
-		charID, accountID).Scan(&c.ID, &c.Name, &c.Class, &c.ZoneID, &x, &y, &z, &c.Level, &c.HP, &c.MP, &c.MaxHP, &c.MaxMP, &c.XP)
+		charID, accountID).Scan(&c.ID, &c.Name, &c.Class, &c.ZoneID, &x, &y, &z, &c.Level, &c.HP, &c.MP, &c.MaxHP, &c.MaxMP, &c.XP, &c.Gold)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil, nil
 	}
