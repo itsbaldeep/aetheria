@@ -33,6 +33,18 @@ type CharacterLoader interface {
 	LoadCharacter(ctx context.Context, accountID, charID int64) (*CharacterSpawn, error)
 }
 
+// ItemLoader loads a character's persisted item instances at EnterWorld (M4).
+// Optional: when absent, players enter with an empty inventory.
+type ItemLoader interface {
+	LoadItems(ctx context.Context, charID int64) ([]world.Item, error)
+}
+
+// ItemSaver persists a character's item instances (M4). Optional: when
+// absent, items are only held in memory for the session.
+type ItemSaver interface {
+	SaveItems(ctx context.Context, charID int64, items []world.Item) error
+}
+
 // CharacterSpawn is the subset of character data the world needs to spawn.
 type CharacterSpawn struct {
 	ID     int64
@@ -46,6 +58,7 @@ type CharacterSpawn struct {
 	MP     int64
 	MaxMP  int64
 	XP     int64
+	Gold   int64
 }
 
 // connState is per-connection mutable state, owned by the HandleWS goroutine
@@ -199,6 +212,15 @@ func (h *Hub) leaveWorld(p *world.Player) {
 		_ = h.sim.SavePos(ctx, p.CharacterID, p.Pos)
 		cancel()
 	}
+	// Persist items + flush the gold ledger on disconnect (M4).
+	if is, ok := h.cl.(ItemSaver); ok {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		_ = is.SaveItems(ctx, p.CharacterID, h.sim.PersistItems(p.CharacterID))
+		cancel()
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	h.sim.FlushGoldLedger(ctx)
+	cancel()
 	h.sim.Despawn(p.CharacterID)
 	h.s.Log("info", "player left world", "char_id", p.CharacterID)
 }
@@ -348,12 +370,111 @@ func (h *Hub) dispatch(ctx context.Context, st *connState, env *aet.Envelope) bo
 			Position: &aet.Vec3{X: float32(pos.X), Y: float32(pos.Y), Z: float32(pos.Z)},
 		})
 		return false
+	case "aetheria.PickupItem":
+		if st.session == nil {
+			h.s.Log("warn", "pickup before enter world")
+			return false
+		}
+		pi := &aet.PickupItem{}
+		if err := proto.Unmarshal(env.Payload, pi); err != nil {
+			h.s.Log("warn", "bad pickup payload", "error", err)
+			return false
+		}
+		if err := h.sim.PickupItem(st.session.CharacterID, pi.DropEntityId); err != nil {
+			h.s.Log("info", "pickup rejected", "char_id", st.session.CharacterID, "drop", pi.DropEntityId, "error", err)
+			h.sendLootError(st, pi.DropEntityId, err)
+		}
+		return false
+	case "aetheria.EquipItem":
+		if st.session == nil {
+			h.s.Log("warn", "equip before enter world")
+			return false
+		}
+		ei := &aet.EquipItem{}
+		if err := proto.Unmarshal(env.Payload, ei); err != nil {
+			h.s.Log("warn", "bad equip payload", "error", err)
+			return false
+		}
+		if err := h.sim.EquipItem(st.session.CharacterID, ei.ItemId); err != nil {
+			h.s.Log("info", "equip rejected", "char_id", st.session.CharacterID, "item", ei.ItemId, "error", err)
+			h.sendLootError(st, ei.ItemId, err)
+		}
+		return false
+	case "aetheria.UnequipItem":
+		if st.session == nil {
+			h.s.Log("warn", "unequip before enter world")
+			return false
+		}
+		ui := &aet.UnequipItem{}
+		if err := proto.Unmarshal(env.Payload, ui); err != nil {
+			h.s.Log("warn", "bad unequip payload", "error", err)
+			return false
+		}
+		if err := h.sim.UnequipItem(st.session.CharacterID, ui.Slot); err != nil {
+			h.s.Log("info", "unequip rejected", "char_id", st.session.CharacterID, "slot", ui.Slot, "error", err)
+			h.sendLootError(st, 0, err)
+		}
+		return false
+	case "aetheria.SellItem":
+		if st.session == nil {
+			h.s.Log("warn", "sell before enter world")
+			return false
+		}
+		si := &aet.SellItem{}
+		if err := proto.Unmarshal(env.Payload, si); err != nil {
+			h.s.Log("warn", "bad sell payload", "error", err)
+			return false
+		}
+		if err := h.sim.SellItem(st.session.CharacterID, si.ItemId, si.Quantity); err != nil {
+			h.s.Log("info", "sell rejected", "char_id", st.session.CharacterID, "item", si.ItemId, "error", err)
+			h.sendLootError(st, si.ItemId, err)
+		}
+		return false
+	case "aetheria.BuyItem":
+		if st.session == nil {
+			h.s.Log("warn", "buy before enter world")
+			return false
+		}
+		bi := &aet.BuyItem{}
+		if err := proto.Unmarshal(env.Payload, bi); err != nil {
+			h.s.Log("warn", "bad buy payload", "error", err)
+			return false
+		}
+		if err := h.sim.BuyItem(st.session.CharacterID, bi.VendorId, bi.ItemDefId, bi.Quantity); err != nil {
+			h.s.Log("info", "buy rejected", "char_id", st.session.CharacterID, "vendor", bi.VendorId, "item", bi.ItemDefId, "error", err)
+			h.sendLootError(st, 0, err)
+		}
+		return false
 	case "aetheria.LeaveWorld":
 		return true
 	default:
 		h.s.Log("warn", "unknown payload type", "type", env.PayloadType)
 	}
 	return false
+}
+
+// sendLootError relays a rejected economy mutation to the client as a
+// LootEvent with ok=false and the rejection reason (proto contract §M4).
+func (h *Hub) sendLootError(st *connState, itemID uint64, err error) {
+	if st.session == nil || st.session.Outbox == nil {
+		return
+	}
+	payload, perr := proto.Marshal(&aet.LootEvent{Ok: false, Error: err.Error(), ItemId: itemID})
+	if perr != nil {
+		return
+	}
+	frame, merr := proto.Marshal(&aet.Envelope{
+		Kind:        aet.Envelope_KIND_EVENT,
+		PayloadType: "aetheria.LootEvent",
+		Payload:     payload,
+	})
+	if merr != nil {
+		return
+	}
+	select {
+	case st.session.Outbox <- frame:
+	default:
+	}
 }
 
 // handleEnterWorld validates the character, spawns it in the sim, and replies
@@ -402,11 +523,22 @@ func (h *Hub) handleEnterWorld(ctx context.Context, st *connState, env *aet.Enve
 		MP:          spawn.MP,
 		MaxMP:       spawn.MaxMP,
 		XP:          spawn.XP,
+		Gold:        spawn.Gold,
 		Outbox:      st.outbox,
 	}
 	if err := h.sim.Spawn(p); err != nil {
 		h.enqueue(st, &aet.EnterWorldAck{Ok: false, Error: "already_in_world"})
 		return false
+	}
+	// Restore persisted items (M4). Failure is non-fatal: log + continue with
+	// whatever loaded.
+	if il, ok := h.cl.(ItemLoader); ok {
+		items, err := il.LoadItems(ctx, spawn.ID)
+		if err != nil {
+			h.s.Log("warn", "item load failed", "char_id", spawn.ID, "error", err)
+		} else if err := h.sim.RestoreItems(spawn.ID, items); err != nil {
+			h.s.Log("warn", "item restore failed", "char_id", spawn.ID, "error", err)
+		}
 	}
 	st.session = p
 	h.s.Log("info", "player entered world", "char_id", spawn.ID, "zone", spawn.ZoneID)

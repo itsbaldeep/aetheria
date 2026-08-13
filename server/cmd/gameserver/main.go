@@ -56,26 +56,29 @@ func main() {
 		s.Log("fatal", "content load failed", "error", err)
 		os.Exit(1)
 	}
-	s.Log("info", "content loaded", "skills", len(content.Skills), "mobs", len(content.Mobs), "zones", len(content.Zones))
+	s.Log("info", "content loaded", "skills", len(content.Skills), "mobs", len(content.Mobs), "zones", len(content.Zones), "items", len(content.Items), "drops", len(content.Drops), "npcs", len(content.NPCs))
 
 	// World simulation (M2/M3). Position save-back runs on a 30 s write-behind;
 	// character level/xp/hp/mp persist on change (SaveChar).
 	sim := world.New(world.Options{
-		Zones:    zoneDefs,
-		Content:  content,
-		SavePos:  store.SaveCharacterPosition,
-		SaveChar: store.SaveCharacterState,
+		Zones:      zoneDefs,
+		Content:    content,
+		SavePos:    store.SaveCharacterPosition,
+		SaveChar:   store.SaveCharacterState,
+		SaveLedger: ledgerFlusher(s, store),
 		MobSpawn: func(sim *world.Sim) {
 			world.SpawnMobs(sim, content, world.SpawnBands)
 		},
 	})
 	go sim.Run(ctx)
-	// Write-behind flush every 30 s (brief §3: dirty-flag flush).
+	// Write-behind flush every 30 s (brief §3: dirty-flag flush) + gold ledger
+	// (M4: sum(ledger) == world gold).
 	go func() {
 		t := time.NewTicker(30 * time.Second)
 		defer t.Stop()
 		for range t.C {
 			sim.SavePlayerPositions(ctx)
+			sim.FlushGoldLedger(ctx)
 		}
 	}()
 
@@ -146,7 +149,33 @@ func (c *charLoader) LoadCharacter(ctx context.Context, accountID, charID int64)
 		MP:     row.MP,
 		MaxMP:  row.MaxMP,
 		XP:     row.XP,
+		Gold:   row.Gold,
 	}, nil
+}
+
+// LoadItems satisfies wire.ItemLoader (M4).
+func (c *charLoader) LoadItems(ctx context.Context, charID int64) ([]world.Item, error) {
+	return c.store.LoadCharacterItems(ctx, charID)
+}
+
+// SaveItems satisfies wire.ItemSaver (M4).
+func (c *charLoader) SaveItems(ctx context.Context, charID int64, items []world.Item) error {
+	return c.store.SaveCharacterItems(ctx, charID, items)
+}
+
+// ledgerFlusher adapts the auth store's transactional gold ledger into the
+// world's SaveLedger hook. Rejected entries (insufficient gold) are logged.
+func ledgerFlusher(s *platform.Service, store *auth.Store) func(ctx context.Context, entries []world.LedgerEntry) error {
+	return func(ctx context.Context, entries []world.LedgerEntry) error {
+		rejected, err := store.ApplyGoldLedger(ctx, entries)
+		if err != nil {
+			return err
+		}
+		for _, r := range rejected {
+			s.Log("warn", "ledger rejected", "char_id", r.CharID, "delta", r.Amount, "reason", r.Reason)
+		}
+		return nil
+	}
 }
 
 func pgDSN() string {

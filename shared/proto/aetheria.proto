@@ -189,3 +189,52 @@ message RespawnAck {
   Vec3 position = 4;
 }
 
+// ==================== M4: items, inventory, loot, vendors ====================
+// Ground drops appear as entities with entity_type "drop". The client picks
+// them up within radius; the server is authoritative and a drop is claimed
+// exactly once. Items live in a grid inventory plus equipment slots (weapon /
+// chest / accessory). Vendors (npc_defs kind=vendor) buy and sell items; every
+// gold mutation is written to gold_ledger (audited economy).
+
+// Client → server: pick up a ground drop by entity id. Server enforces the
+// pickup radius rule and single-claim; replies with a LootEvent result.
+message PickupItem {
+  uint64 drop_entity_id = 1;
+}
+
+// Client → server: equip an inventory item by instance id.
+message EquipItem {
+  uint64 item_id = 1;
+}
+
+// Client → server: unequip the item in an equipment slot.
+message UnequipItem {
+  string slot = 1;  // "weapon" | "chest" | "accessory"
+}
+
+// Client → server: sell inventory items to a vendor (credits gold).
+message SellItem {
+  uint64 item_id = 1;
+  int32 quantity = 2;
+}
+
+// Client → server: buy an item def from a vendor's stock (pays gold).
+message BuyItem {
+  string vendor_id = 1;
+  string item_def_id = 2;
+  int32 quantity = 3;
+}
+
+// Server → client: one inventory/equipment/gold mutation result. `ok` false
+// means the mutation was rejected (`error` explains). Carried as a CombatEvent
+// with event_type "loot" for the error field compatibility below.
+message LootEvent {
+  bool ok = 1;
+  string error = 2;
+  uint64 item_id = 3;
+  string item_def_id = 4;
+  int32 quantity = 5;
+  int64 gold = 6;        // signed gold change for this mutation
+  int64 balance = 7;     // player's gold after the mutation
+}
+

@@ -1321,6 +1321,351 @@ func (x *RespawnAck) GetPosition() *Vec3 {
 	return nil
 }
 
+// Client → server: pick up a ground drop by entity id. Server enforces the
+// pickup radius rule and single-claim; replies with a LootEvent result.
+type PickupItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	DropEntityId  uint64                 `protobuf:"varint,1,opt,name=drop_entity_id,json=dropEntityId,proto3" json:"drop_entity_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *PickupItem) Reset() {
+	*x = PickupItem{}
+	mi := &file_aetheria_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *PickupItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*PickupItem) ProtoMessage() {}
+
+func (x *PickupItem) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use PickupItem.ProtoReflect.Descriptor instead.
+func (*PickupItem) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{18}
+}
+
+func (x *PickupItem) GetDropEntityId() uint64 {
+	if x != nil {
+		return x.DropEntityId
+	}
+	return 0
+}
+
+// Client → server: equip an inventory item by instance id.
+type EquipItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ItemId        uint64                 `protobuf:"varint,1,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *EquipItem) Reset() {
+	*x = EquipItem{}
+	mi := &file_aetheria_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *EquipItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*EquipItem) ProtoMessage() {}
+
+func (x *EquipItem) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use EquipItem.ProtoReflect.Descriptor instead.
+func (*EquipItem) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{19}
+}
+
+func (x *EquipItem) GetItemId() uint64 {
+	if x != nil {
+		return x.ItemId
+	}
+	return 0
+}
+
+// Client → server: unequip the item in an equipment slot.
+type UnequipItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Slot          string                 `protobuf:"bytes,1,opt,name=slot,proto3" json:"slot,omitempty"` // "weapon" | "chest" | "accessory"
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UnequipItem) Reset() {
+	*x = UnequipItem{}
+	mi := &file_aetheria_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UnequipItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UnequipItem) ProtoMessage() {}
+
+func (x *UnequipItem) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use UnequipItem.ProtoReflect.Descriptor instead.
+func (*UnequipItem) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{20}
+}
+
+func (x *UnequipItem) GetSlot() string {
+	if x != nil {
+		return x.Slot
+	}
+	return ""
+}
+
+// Client → server: sell inventory items to a vendor (credits gold).
+type SellItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	ItemId        uint64                 `protobuf:"varint,1,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	Quantity      int32                  `protobuf:"varint,2,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *SellItem) Reset() {
+	*x = SellItem{}
+	mi := &file_aetheria_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *SellItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SellItem) ProtoMessage() {}
+
+func (x *SellItem) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SellItem.ProtoReflect.Descriptor instead.
+func (*SellItem) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *SellItem) GetItemId() uint64 {
+	if x != nil {
+		return x.ItemId
+	}
+	return 0
+}
+
+func (x *SellItem) GetQuantity() int32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+// Client → server: buy an item def from a vendor's stock (pays gold).
+type BuyItem struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	VendorId      string                 `protobuf:"bytes,1,opt,name=vendor_id,json=vendorId,proto3" json:"vendor_id,omitempty"`
+	ItemDefId     string                 `protobuf:"bytes,2,opt,name=item_def_id,json=itemDefId,proto3" json:"item_def_id,omitempty"`
+	Quantity      int32                  `protobuf:"varint,3,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BuyItem) Reset() {
+	*x = BuyItem{}
+	mi := &file_aetheria_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BuyItem) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BuyItem) ProtoMessage() {}
+
+func (x *BuyItem) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use BuyItem.ProtoReflect.Descriptor instead.
+func (*BuyItem) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *BuyItem) GetVendorId() string {
+	if x != nil {
+		return x.VendorId
+	}
+	return ""
+}
+
+func (x *BuyItem) GetItemDefId() string {
+	if x != nil {
+		return x.ItemDefId
+	}
+	return ""
+}
+
+func (x *BuyItem) GetQuantity() int32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+// Server → client: one inventory/equipment/gold mutation result. `ok` false
+// means the mutation was rejected (`error` explains). Carried as a CombatEvent
+// with event_type "loot" for the error field compatibility below.
+type LootEvent struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Ok            bool                   `protobuf:"varint,1,opt,name=ok,proto3" json:"ok,omitempty"`
+	Error         string                 `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
+	ItemId        uint64                 `protobuf:"varint,3,opt,name=item_id,json=itemId,proto3" json:"item_id,omitempty"`
+	ItemDefId     string                 `protobuf:"bytes,4,opt,name=item_def_id,json=itemDefId,proto3" json:"item_def_id,omitempty"`
+	Quantity      int32                  `protobuf:"varint,5,opt,name=quantity,proto3" json:"quantity,omitempty"`
+	Gold          int64                  `protobuf:"varint,6,opt,name=gold,proto3" json:"gold,omitempty"`       // signed gold change for this mutation
+	Balance       int64                  `protobuf:"varint,7,opt,name=balance,proto3" json:"balance,omitempty"` // player's gold after the mutation
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *LootEvent) Reset() {
+	*x = LootEvent{}
+	mi := &file_aetheria_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *LootEvent) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*LootEvent) ProtoMessage() {}
+
+func (x *LootEvent) ProtoReflect() protoreflect.Message {
+	mi := &file_aetheria_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use LootEvent.ProtoReflect.Descriptor instead.
+func (*LootEvent) Descriptor() ([]byte, []int) {
+	return file_aetheria_proto_rawDescGZIP(), []int{23}
+}
+
+func (x *LootEvent) GetOk() bool {
+	if x != nil {
+		return x.Ok
+	}
+	return false
+}
+
+func (x *LootEvent) GetError() string {
+	if x != nil {
+		return x.Error
+	}
+	return ""
+}
+
+func (x *LootEvent) GetItemId() uint64 {
+	if x != nil {
+		return x.ItemId
+	}
+	return 0
+}
+
+func (x *LootEvent) GetItemDefId() string {
+	if x != nil {
+		return x.ItemDefId
+	}
+	return ""
+}
+
+func (x *LootEvent) GetQuantity() int32 {
+	if x != nil {
+		return x.Quantity
+	}
+	return 0
+}
+
+func (x *LootEvent) GetGold() int64 {
+	if x != nil {
+		return x.Gold
+	}
+	return 0
+}
+
+func (x *LootEvent) GetBalance() int64 {
+	if x != nil {
+		return x.Balance
+	}
+	return 0
+}
+
 var File_aetheria_proto protoreflect.FileDescriptor
 
 const file_aetheria_proto_rawDesc = "" +
@@ -1427,7 +1772,29 @@ const file_aetheria_proto_rawDesc = "" +
 	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
 	"\x05error\x18\x02 \x01(\tR\x05error\x12\x17\n" +
 	"\azone_id\x18\x03 \x01(\tR\x06zoneId\x12*\n" +
-	"\bposition\x18\x04 \x01(\v2\x0e.aetheria.Vec3R\bpositionB+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
+	"\bposition\x18\x04 \x01(\v2\x0e.aetheria.Vec3R\bposition\"2\n" +
+	"\n" +
+	"PickupItem\x12$\n" +
+	"\x0edrop_entity_id\x18\x01 \x01(\x04R\fdropEntityId\"$\n" +
+	"\tEquipItem\x12\x17\n" +
+	"\aitem_id\x18\x01 \x01(\x04R\x06itemId\"!\n" +
+	"\vUnequipItem\x12\x12\n" +
+	"\x04slot\x18\x01 \x01(\tR\x04slot\"?\n" +
+	"\bSellItem\x12\x17\n" +
+	"\aitem_id\x18\x01 \x01(\x04R\x06itemId\x12\x1a\n" +
+	"\bquantity\x18\x02 \x01(\x05R\bquantity\"b\n" +
+	"\aBuyItem\x12\x1b\n" +
+	"\tvendor_id\x18\x01 \x01(\tR\bvendorId\x12\x1e\n" +
+	"\vitem_def_id\x18\x02 \x01(\tR\titemDefId\x12\x1a\n" +
+	"\bquantity\x18\x03 \x01(\x05R\bquantity\"\xb4\x01\n" +
+	"\tLootEvent\x12\x0e\n" +
+	"\x02ok\x18\x01 \x01(\bR\x02ok\x12\x14\n" +
+	"\x05error\x18\x02 \x01(\tR\x05error\x12\x17\n" +
+	"\aitem_id\x18\x03 \x01(\x04R\x06itemId\x12\x1e\n" +
+	"\vitem_def_id\x18\x04 \x01(\tR\titemDefId\x12\x1a\n" +
+	"\bquantity\x18\x05 \x01(\x05R\bquantity\x12\x12\n" +
+	"\x04gold\x18\x06 \x01(\x03R\x04gold\x12\x18\n" +
+	"\abalance\x18\a \x01(\x03R\abalanceB+Z)github.com/itsbaldeep/aetheria/server/genb\x06proto3"
 
 var (
 	file_aetheria_proto_rawDescOnce sync.Once
@@ -1442,7 +1809,7 @@ func file_aetheria_proto_rawDescGZIP() []byte {
 }
 
 var file_aetheria_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
+var file_aetheria_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_aetheria_proto_goTypes = []any{
 	(Envelope_Kind)(0),       // 0: aetheria.Envelope.Kind
 	(SessionStatus_State)(0), // 1: aetheria.SessionStatus.State
@@ -1464,6 +1831,12 @@ var file_aetheria_proto_goTypes = []any{
 	(*ChatMessage)(nil),      // 17: aetheria.ChatMessage
 	(*RespawnRequest)(nil),   // 18: aetheria.RespawnRequest
 	(*RespawnAck)(nil),       // 19: aetheria.RespawnAck
+	(*PickupItem)(nil),       // 20: aetheria.PickupItem
+	(*EquipItem)(nil),        // 21: aetheria.EquipItem
+	(*UnequipItem)(nil),      // 22: aetheria.UnequipItem
+	(*SellItem)(nil),         // 23: aetheria.SellItem
+	(*BuyItem)(nil),          // 24: aetheria.BuyItem
+	(*LootEvent)(nil),        // 25: aetheria.LootEvent
 }
 var file_aetheria_proto_depIdxs = []int32{
 	0,  // 0: aetheria.Envelope.kind:type_name -> aetheria.Envelope.Kind
@@ -1494,7 +1867,7 @@ func file_aetheria_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_aetheria_proto_rawDesc), len(file_aetheria_proto_rawDesc)),
 			NumEnums:      2,
-			NumMessages:   18,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
