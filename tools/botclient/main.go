@@ -37,7 +37,7 @@ var soakVerbose bool
 
 func main() {
 	addr := flag.String("addr", "wss://play.aetheria.apps.deployden.tech/ws", "gameserver websocket URL")
-	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|combat-soak|chat|trader|chaos)")
+	profile := flag.String("profile", "ping", "behavior profile (ping|register|login|create-char|full-auth|presence|roamer|combat|combat-soak|chat|trader|quester|chaos)")
 	api := flag.String("api", "http://127.0.0.1:3016", "authserver base URL (http://host:port)")
 	ctrl := flag.String("ctrl", "http://127.0.0.1:5003", "gameserver control endpoint (for combat-soak stats)")
 	n := flag.Int("n", 20, "count for batch profiles (register/roamer/chaos/combat-soak)")
@@ -68,10 +68,12 @@ func main() {
 		runCombatSoak(*addr, *api, *ctrl, *n, *duration)
 	case "trader":
 		runTrader(*addr, *api)
+	case "quester":
+		runQuester(*addr, *api)
 	case "chaos":
 		runChaos(*addr, *api, *n, *duration)
 	default:
-		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer combat combat-soak chat trader chaos)\n", *profile)
+		fmt.Fprintf(os.Stderr, "botclient: unknown profile %q (profiles: ping register login create-char full-auth presence roamer combat combat-soak chat trader quester chaos)\n", *profile)
 		os.Exit(2)
 	}
 }
@@ -366,6 +368,53 @@ func runTrader(wsURL, apiURL string) {
 		fatal("trader: gold did not increase after sell (before=%d after=%d)", res.GoldBefore, res.GoldAfter)
 	}
 	fmt.Printf("trader ALL PASS: killed boar, picked up drop, sold item, gold %d→%d\n", res.GoldBefore, res.GoldAfter)
+}
+
+// runQuester is the M5 acceptance: one bot plays the full 15-quest Havenport
+// chain (talk/kill/collect/turn-in) from level 1 and must finish every quest,
+// reaching roughly level 9+ (make questrun).
+func runQuester(wsURL, apiURL string) {
+	stamp := time.Now().UTC().Format("20060102T150405")
+	suffix := "000"
+	if b, err := rand.Int(rand.Reader, big.NewInt(1000)); err == nil {
+		suffix = fmt.Sprintf("%03d", b.Int64())
+	}
+	email := fmt.Sprintf("botquest-%s-%s@aetheria.test", stamp, suffix)
+	seed := scenarios.RegisterConfig{BaseURL: apiURL, Count: 1, EmailFmt: email, Password: "quest-pass-9", BatchSize: 1}
+	if _, err := scenarios.RegisterBatch(seed); err != nil {
+		fatal("seed: %v", err)
+	}
+	lg, err := scenarios.Login(apiURL, email, "quest-pass-9")
+	if err != nil || lg.Token == "" {
+		fatal("login: %v", err)
+	}
+	name := "Quest" + suffix
+	if st, _, _ := scenarios.CreateCharacter(apiURL, lg.Token, name, ClassBladeDancer); st != 201 {
+		fatal("create char: status=%d", st)
+	}
+	roster, st, _ := scenarios.ListCharacters(apiURL, lg.Token)
+	if st != 200 || len(roster) != 1 {
+		fatal("roster len=%d st=%d", len(roster), st)
+	}
+	charID := int64(roster[0]["id"].(float64))
+
+	// The full chain can take several minutes (hunting + walking between
+	// town and the field bands); budget generously.
+	res, err := scenarios.Quester(wsURL, lg.Token, charID, 40*time.Minute, os.Stderr)
+	if err != nil {
+		fatal("quester: %v", err)
+	}
+	if res.SnapshotCount == 0 {
+		fatal("quester: no snapshots seen")
+	}
+	if len(res.QuestsCompleted) != 15 {
+		fatal("quester: %d/15 quests complete, want all", len(res.QuestsCompleted))
+	}
+	if res.FinalLevel < 9 {
+		fatal("quester: final level %d, want >= 9", res.FinalLevel)
+	}
+	fmt.Printf("quester ALL PASS: %d quests complete, %d kills, %d pickups, level %d\n",
+		len(res.QuestsCompleted), res.TotalKills, res.TotalPickups, res.FinalLevel)
 }
 
 // runCombatSoak is the M3 acceptance soak (brief §11): N bots run the combat

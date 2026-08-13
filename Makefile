@@ -81,7 +81,8 @@ combat-soak: ## M3 acceptance soak: N bots combat for DURATION (asserts tick p99
 	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -ctrl http://127.0.0.1:$(AETHERIA_CONTROL_PORT) -profile combat-soak -n $(N) -duration $(DURATION)
 
 questrun:
-	@echo "questrun (M5+): master regression playthrough"
+	go run ./tools/botclient -addr ws://127.0.0.1:$(AETHERIA_GAME_PORT)/ws -api http://127.0.0.1:$(AETHERIA_AUTH_PORT) -profile quester
+	@echo "questrun: full Havenport quest chain complete (M5 acceptance)"
 
 # ---- client export ----
 export-client:

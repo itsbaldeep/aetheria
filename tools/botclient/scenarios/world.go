@@ -51,6 +51,14 @@ type WorldBot struct {
 	LastRespawnAck *aet.RespawnAck
 	// LastSelfHP tracks the player's HP from the last `self` snapshot.
 	LastSelfHP int64
+	// LastSelfLevel tracks the player's level from the last `self` snapshot.
+	LastSelfLevel int32
+	// Quests holds relayed QuestEvent frames (M5 objective/state updates).
+	Quests []*aet.QuestEvent
+	// Dialogs holds relayed NpcDialogEvent frames (M5).
+	Dialogs []*aet.NpcDialogEvent
+	// LastQuestStatus holds the most recent full QuestStatusEvent (M5).
+	LastQuestStatus *aet.QuestStatusEvent
 }
 
 // ConnectWorld dials the gameserver WS with a Bearer token, reads ServerHello,
@@ -273,6 +281,66 @@ func (b *WorldBot) BuyItem(ctx context.Context, vendorID, itemDefID string, qty 
 	return b.write(ctx, env)
 }
 
+// NpcInteract talks to an NPC by def id (M5).
+func (b *WorldBot) NpcInteract(ctx context.Context, npcID string) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.NpcInteract",
+		Payload:     mustMarshal(&aet.NpcInteract{NpcId: npcID}),
+	}
+	return b.write(ctx, env)
+}
+
+// QuestAccept accepts a quest (M5).
+func (b *WorldBot) QuestAccept(ctx context.Context, questID string) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.QuestAccept",
+		Payload:     mustMarshal(&aet.QuestAccept{QuestId: questID}),
+	}
+	return b.write(ctx, env)
+}
+
+// QuestAbandon drops an active quest (M5).
+func (b *WorldBot) QuestAbandon(ctx context.Context, questID string) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.QuestAbandon",
+		Payload:     mustMarshal(&aet.QuestAbandon{QuestId: questID}),
+	}
+	return b.write(ctx, env)
+}
+
+// QuestTurnIn completes an active quest at its turn-in NPC (M5).
+func (b *WorldBot) QuestTurnIn(ctx context.Context, questID string) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.QuestTurnIn",
+		Payload:     mustMarshal(&aet.QuestTurnIn{QuestId: questID}),
+	}
+	return b.write(ctx, env)
+}
+
+// QuestStatus requests the character's full quest status (M5).
+func (b *WorldBot) QuestStatus(ctx context.Context) error {
+	b.seq++
+	env := &aet.Envelope{
+		Seq:         b.seq,
+		Kind:        aet.Envelope_KIND_REQUEST,
+		PayloadType: "aetheria.QuestStatus",
+		Payload:     mustMarshal(&aet.QuestStatus{}),
+	}
+	return b.write(ctx, env)
+}
+
 // StartHeartbeat runs KeepAlive on a background ticker until ctx is done,
 // then exits. The read loop may block for a long time (no snapshots when
 // nothing changes), which would otherwise starve the server's inbound read
@@ -344,6 +412,7 @@ func (b *WorldBot) ReadFrame(ctx context.Context) (*aet.Envelope, error) {
 			b.EntityID = e.EntityId
 			b.PosX, b.PosY, b.PosZ = float64(e.Position.X), float64(e.Position.Y), float64(e.Position.Z)
 			b.LastSelfHP = e.Hp
+			b.LastSelfLevel = e.Level
 			b.Seen[e.EntityId] = e
 		}
 		for _, e := range snap.Entities {
@@ -373,8 +442,73 @@ func (b *WorldBot) ReadFrame(ctx context.Context) (*aet.Envelope, error) {
 		if err := proto.Unmarshal(env.Payload, le); err == nil {
 			b.Loot = append(b.Loot, le)
 		}
+	case "aetheria.QuestEvent":
+		ev := &aet.QuestEvent{}
+		if err := proto.Unmarshal(env.Payload, ev); err == nil {
+			b.Quests = append(b.Quests, ev)
+		}
+	case "aetheria.NpcDialogEvent":
+		d := &aet.NpcDialogEvent{}
+		if err := proto.Unmarshal(env.Payload, d); err == nil {
+			b.Dialogs = append(b.Dialogs, d)
+		}
+	case "aetheria.QuestStatusEvent":
+		qs := &aet.QuestStatusEvent{}
+		if err := proto.Unmarshal(env.Payload, qs); err == nil {
+			b.LastQuestStatus = qs
+		}
 	}
 	return env, nil
+}
+
+// DrainQuests returns and clears accumulated QuestEvents (M5).
+func (b *WorldBot) DrainQuests() []*aet.QuestEvent {
+	out := b.Quests
+	b.Quests = nil
+	return out
+}
+
+// DrainDialogs returns and clears accumulated NpcDialogEvents (M5).
+func (b *WorldBot) DrainDialogs() []*aet.NpcDialogEvent {
+	out := b.Dialogs
+	b.Dialogs = nil
+	return out
+}
+
+// FindNPC returns the nearest NPC entity in AOI by def id (M5).
+func (b *WorldBot) FindNPC(npcID string) *aet.EntityState {
+	var best *aet.EntityState
+	var bestDist float64
+	for _, e := range b.Seen {
+		if e.EntityType != "npc" || e.RefId != npcID {
+			continue
+		}
+		dx := float64(e.Position.X) - b.PosX
+		dz := float64(e.Position.Z) - b.PosZ
+		d := dx*dx + dz*dz
+		if best == nil || d < bestDist {
+			best, bestDist = e, d
+		}
+	}
+	return best
+}
+
+// FindMobByRef returns the nearest living mob with the given def ref id (M5).
+func (b *WorldBot) FindMobByRef(refID string) *aet.EntityState {
+	var best *aet.EntityState
+	var bestDist float64
+	for _, e := range b.Seen {
+		if e.EntityType != "mob" || e.Hp <= 0 || e.RefId != refID {
+			continue
+		}
+		dx := float64(e.Position.X) - b.PosX
+		dz := float64(e.Position.Z) - b.PosZ
+		d := dx*dx + dz*dz
+		if best == nil || d < bestDist {
+			best, bestDist = e, d
+		}
+	}
+	return best
 }
 
 // DrainLoot returns and clears accumulated LootEvents (M4).
@@ -502,6 +636,9 @@ func (b *WorldBot) RawWrite(ctx context.Context, frame []byte) error {
 
 // FindEntity returns the last EntityState seen for an entity id.
 func (b *WorldBot) FindEntity(id uint64) *aet.EntityState { return b.Seen[id] }
+
+// SelfLevel returns the character's current level from the last snapshot.
+func (b *WorldBot) SelfLevel() int32 { return b.LastSelfLevel }
 
 // mustMarshal panics on marshal failure (frames are fixed small shapes).
 func mustMarshal(m proto.Message) []byte {

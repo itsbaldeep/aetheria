@@ -340,6 +340,7 @@ func (s *Sim) spawnDrop(pos Vec3, zone string, item *Item, gold int64) *Drop {
 	}
 	if item != nil {
 		d.DefID = item.DefID
+		d.RefID = item.DefID // surfaced so bots/clients can find drops by def (M5)
 		d.Qty = item.Qty
 	}
 	if gold > 0 {
