@@ -46,3 +46,64 @@ jobs:
           cd client
           LD_LIBRARY_PATH="" /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --import
           LD_LIBRARY_PATH="" /tmp/godot/Godot_v4.7.1-stable_linux.x86_64 --headless --path . --script res://scripts/test_proto.gd 2>&1 | grep -q "ALL PASS"
+
+  # Master M5 regression: boots a full headless stack (Postgres + Redis +
+  # authserver + gameserver) and runs the quester bot through all 15 quests.
+  # Runs only on pushes to main (it's the slowest job; PRs get the fast ones).
+  questrun:
+    needs: test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: aetheria
+          POSTGRES_PASSWORD: ci-pass
+          POSTGRES_DB: aetheria
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U aetheria"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      AETHERIA_PG_DSN: postgres://aetheria:ci-pass@127.0.0.1:5432/aetheria?sslmode=disable
+      AETHERIA_SESSION_KEY: ci-session-key-not-secret
+      AETHERIA_AUTH_PORT: "3016"
+      AETHERIA_GAME_PORT: "3015"
+      AETHERIA_CONTROL_PORT: "5003"
+      AETHERIA_REDIS_PORT: "6379"
+      AETHERIA_TUNE_SPEED: "4"
+      AETHERIA_TUNE_RESPAWN_MS: "5000"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+      - name: Install goose
+        run: go install github.com/pressly/goose/v3/cmd/goose@v3.24.1
+      - name: Migrate
+        run: goose -dir deploy/migrations postgres "$AETHERIA_PG_DSN" up
+      - name: Build servers
+        run: |
+          go build -o /tmp/svc/authserver ./server/cmd/authserver
+          go build -o /tmp/svc/gameserver ./server/cmd/gameserver
+      - name: Boot stack + run questrun
+        run: |
+          mkdir -p /tmp/svc
+          /tmp/svc/authserver > /tmp/auth.log 2>&1 &
+          sleep 1
+          /tmp/svc/gameserver > /tmp/game.log 2>&1 &
+          for i in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:3016/healthz >/dev/null 2>&1 && curl -fsS http://127.0.0.1:5003/healthz >/dev/null 2>&1 && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:3016/healthz || { echo "auth not healthy:"; cat /tmp/auth.log; exit 1; }
+          curl -fsS http://127.0.0.1:5003/healthz || { echo "game not healthy:"; cat /tmp/game.log; exit 1; }
+          go run ./tools/botclient -addr ws://127.0.0.1:3015/ws -api http://127.0.0.1:3016 -profile quester | tee /tmp/questrun.log
+          grep -q "quester ALL PASS" /tmp/questrun.log
