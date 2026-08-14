@@ -15,6 +15,19 @@ Every WebSocket binary frame is one `aetheria.Envelope`:
 | `payload_type` | string | full message name, e.g. `aetheria.MoveIntent` |
 | `payload` | bytes | protobuf-encoded message |
 
+## Scalars
+
+| proto | wire | notes |
+|---|---|---|
+| `int32/int64/uint32/uint64/bool` | varint | bool = 0/1 |
+| `float` | fixed32 (wire type 5) | 4 little-endian IEEE-754 bytes |
+| `string` | length-delimited bytes | UTF-8 |
+| `repeated T` | packed by field, `T` encoded per row | unchanged |
+
+The GDScript `ProtoWire` runtime (tools/protogen) writes `float` as fixed32
+to match the Go protobuf codegen; treat any length-delimited float in a
+message payload as a decode error.
+
 ## Connection lifecycle (M0/M1)
 
 1. Client connects to `wss://play.<domain>/ws` with HTTP header

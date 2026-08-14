@@ -68,6 +68,18 @@ func write_string_field(field_no: int, s: String) -> void:
 func write_bytes_field(field_no: int, b: PackedByteArray) -> void:
 	write_field(field_no, LEN, 0, b)
 
+# proto3 float = fixed32 (wire type 5): 4 raw little-endian IEEE-754 bytes.
+func write_float_field(field_no: int, v: float) -> void:
+	write_varint(field_no << 3 | 5)
+	var b := PackedByteArray()
+	b.resize(4)
+	b.encode_float(0, v)
+	buf.append_array(b)
+
+func read_float() -> float:
+	var b := read_bytes(4)
+	return b.decode_float(0)
+
 # --- decoding ---
 
 func read_varint() -> int:

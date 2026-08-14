@@ -3,15 +3,15 @@
 extends RefCounted
 class_name Vec3
 
-var x: PackedByteArray = PackedByteArray()
-var y: PackedByteArray = PackedByteArray()
-var z: PackedByteArray = PackedByteArray()
+var x: float = 0.0
+var y: float = 0.0
+var z: float = 0.0
 
 func encode() -> PackedByteArray:
 	var w := ProtoWire.new()
-	w.write_bytes_field(1, x)
-	w.write_bytes_field(2, y)
-	w.write_bytes_field(3, z)
+	w.write_float_field(1, x)
+	w.write_float_field(2, y)
+	w.write_float_field(3, z)
 	return w.buf
 
 static func decode(data: PackedByteArray) -> Vec3:
@@ -23,11 +23,11 @@ static func decode(data: PackedByteArray) -> Vec3:
 		if f[0] < 0: break
 		match f[0]:
 			1:
-				m.x = w.read_bytes(w.read_varint())
+				m.x = w.read_float()
 			2:
-				m.y = w.read_bytes(w.read_varint())
+				m.y = w.read_float()
 			3:
-				m.z = w.read_bytes(w.read_varint())
+				m.z = w.read_float()
 			_:
 				w.skip(f[1])
 

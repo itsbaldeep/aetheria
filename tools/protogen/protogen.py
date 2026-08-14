@@ -19,7 +19,9 @@ ENUM_RE = re.compile(r"enum\s+([A-Za-z][A-Za-z0-9_]*)\s*\{")
 SCALAR_GD = {
     "int32": "int", "int64": "int", "uint32": "int", "uint64": "int",
     "bool": "bool", "string": "String", "bytes": "PackedByteArray",
+    "float": "float",
 }
+FLOAT_TYPES = {"float"}
 ENUM_GD = "int"
 VARINT_TYPES = {"int32", "int64", "uint32", "uint64", "bool"}
 WIRE_TYPES = {"float": 5, "double": 1}  # unused in MVP, listed for completeness
@@ -82,6 +84,8 @@ def emit_message(msg_name: str, fields: list, out: Path) -> None:
             lines.append(f"\t\t\t\tm.{v} = w.read_string()")
         elif gd == "PackedByteArray":
             lines.append(f"\t\t\t\tm.{v} = w.read_bytes(w.read_varint())")
+        elif gd == "float":
+            lines.append(f"\t\t\t\tm.{v} = w.read_float()")
         elif gd == "bool":
             lines.append(f"\t\t\t\tm.{v} = w.read_varint() != 0")
         else:
@@ -101,6 +105,8 @@ def _emit_write(lines: list, v: str, f: dict, gd: str, indent: int) -> None:
         lines.append(f"{pad}w.write_string_field({num}, {v})")
     elif gd == "PackedByteArray":
         lines.append(f"{pad}w.write_bytes_field({num}, {v})")
+    elif gd == "float":
+        lines.append(f"{pad}w.write_float_field({num}, {v})")
     elif gd == "bool":
         lines.append(f"{pad}w.write_int64_field({num}, 1 if {v} else 0)")
     else:
@@ -108,7 +114,7 @@ def _emit_write(lines: list, v: str, f: dict, gd: str, indent: int) -> None:
 
 
 def _zero_value(gd: str):
-    return "false" if gd == "bool" else ("\"\"" if gd == "String" else ("PackedByteArray()" if gd == "PackedByteArray" else "0"))
+    return "false" if gd == "bool" else ("0.0" if gd == "float" else ("\"\"" if gd == "String" else ("PackedByteArray()" if gd == "PackedByteArray" else "0")))
 
 
 def parse_proto(text: str) -> dict:

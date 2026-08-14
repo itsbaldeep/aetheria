@@ -8,7 +8,7 @@ var error: String = ""
 var entity_id: int = 0
 var zone_id: String = ""
 var position: PackedByteArray = PackedByteArray()
-var max_speed: PackedByteArray = PackedByteArray()
+var max_speed: float = 0.0
 
 func encode() -> PackedByteArray:
 	var w := ProtoWire.new()
@@ -17,7 +17,7 @@ func encode() -> PackedByteArray:
 	w.write_int64_field(3, entity_id)
 	w.write_string_field(4, zone_id)
 	w.write_bytes_field(5, position)
-	w.write_bytes_field(6, max_speed)
+	w.write_float_field(6, max_speed)
 	return w.buf
 
 static func decode(data: PackedByteArray) -> EnterWorldAck:
@@ -39,7 +39,7 @@ static func decode(data: PackedByteArray) -> EnterWorldAck:
 			5:
 				m.position = w.read_bytes(w.read_varint())
 			6:
-				m.max_speed = w.read_bytes(w.read_varint())
+				m.max_speed = w.read_float()
 			_:
 				w.skip(f[1])
 

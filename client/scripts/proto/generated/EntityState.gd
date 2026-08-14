@@ -8,8 +8,8 @@ var entity_type: String = ""
 var name: String = ""
 var zone_id: String = ""
 var position: PackedByteArray = PackedByteArray()
-var rot_y: PackedByteArray = PackedByteArray()
-var speed: PackedByteArray = PackedByteArray()
+var rot_y: float = 0.0
+var speed: float = 0.0
 var hp: int = 0
 var max_hp: int = 0
 var level: int = 0
@@ -23,8 +23,8 @@ func encode() -> PackedByteArray:
 	w.write_string_field(3, name)
 	w.write_string_field(4, zone_id)
 	w.write_bytes_field(5, position)
-	w.write_bytes_field(6, rot_y)
-	w.write_bytes_field(7, speed)
+	w.write_float_field(6, rot_y)
+	w.write_float_field(7, speed)
 	w.write_int64_field(8, hp)
 	w.write_int64_field(9, max_hp)
 	w.write_int64_field(10, level)
@@ -51,9 +51,9 @@ static func decode(data: PackedByteArray) -> EntityState:
 			5:
 				m.position = w.read_bytes(w.read_varint())
 			6:
-				m.rot_y = w.read_bytes(w.read_varint())
+				m.rot_y = w.read_float()
 			7:
-				m.speed = w.read_bytes(w.read_varint())
+				m.speed = w.read_float()
 			8:
 				m.hp = w.read_varint()
 			9:
