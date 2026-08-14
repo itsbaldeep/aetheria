@@ -90,6 +90,9 @@ type Sim struct {
 	// Muted characters by character id (chat mute).
 	muted map[int64]bool
 
+	// tuning carries playtest acceleration knobs (see Tuning).
+	tuning Tuning
+
 	// Shrines: zone id → respawn position.
 	shrines map[string]Vec3
 
@@ -125,6 +128,14 @@ type Sim struct {
 }
 
 // Options configures the simulation.
+// Tuning holds optional playtest acceleration knobs. Server-configurable so
+// bot acceptance (questrun) and human playtests can move faster without new
+// wire messages; all players on the server share these values.
+type Tuning struct {
+	SpeedMultiplier float64       // move-speed clamp multiplier (>1 = faster travel)
+	RespawnDelay    time.Duration // mob respawn delay after a kill (0 = default 30 s)
+}
+
 type Options struct {
 	Zones        []*Zone
 	Content      *Content // skills + mob defs + shrines (M3) + economy (M4)
@@ -137,6 +148,8 @@ type Options struct {
 	OutboxBuffer int
 	// MobSpawn is a hook to place mobs (spawner). If nil, no mobs spawn.
 	MobSpawn func(s *Sim)
+	// Tuning carries playtest acceleration knobs (see Tuning).
+	Tuning Tuning
 }
 
 // New creates a world simulation. Caller must call Run in its own goroutine.
@@ -149,6 +162,12 @@ func New(opts Options) *Sim {
 	}
 	if opts.OutboxBuffer == 0 {
 		opts.OutboxBuffer = 64
+	}
+	if opts.Tuning.SpeedMultiplier <= 0 {
+		opts.Tuning.SpeedMultiplier = 1
+	}
+	if opts.Tuning.RespawnDelay <= 0 {
+		opts.Tuning.RespawnDelay = 30 * time.Second
 	}
 	s := &Sim{
 		zones:        make(map[string]*Zone),
@@ -173,6 +192,7 @@ func New(opts Options) *Sim {
 		tick:         opts.Tick,
 		outboxBuffer: opts.OutboxBuffer,
 		rng:          rand.New(rand.NewSource(time.Now().UnixNano())),
+		tuning:       opts.Tuning,
 	}
 	for _, z := range opts.Zones {
 		s.zones[z.ID] = z
@@ -428,11 +448,13 @@ func (s *Sim) applyMove(p *Player) {
 	m := p.pending
 	dt := s.tick.Seconds()
 
-	// Speed clamp: never faster than MaxSpeed. Log offenders.
-	speed := m.Speed
-	if speed > p.MaxSpeed {
-		s.log("warn: speed clamp char=%d req=%.1f max=%.1f", p.CharacterID, speed, p.MaxSpeed)
-		speed = p.MaxSpeed
+	// Speed clamp: scale the requested speed by the tuning multiplier (test/
+	// playtest acceleration) and never exceed MaxSpeed × multiplier.
+	speed := m.Speed * s.tuning.SpeedMultiplier
+	maxSpeed := p.MaxSpeed * s.tuning.SpeedMultiplier
+	if speed > maxSpeed {
+		s.log("warn: speed clamp char=%d req=%.1f max=%.1f", p.CharacterID, m.Speed, maxSpeed)
+		speed = maxSpeed
 	}
 	if speed <= 0 {
 		if p.Moving {

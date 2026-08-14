@@ -7,10 +7,10 @@ package main
 
 import (
 	"context"
-
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/itsbaldeep/aetheria/server/internal/auth"
@@ -60,12 +60,25 @@ func main() {
 
 	// World simulation (M2/M3). Position save-back runs on a 30 s write-behind;
 	// character level/xp/hp/mp persist on change (SaveChar).
+	tuneSpeed, _ := strconv.ParseFloat(platform.Env("AETHERIA_TUNE_SPEED", "1"), 64)
+	tuneRespawnMS, _ := strconv.Atoi(platform.Env("AETHERIA_TUNE_RESPAWN_MS", "30000"))
+	if tuneSpeed <= 0 {
+		tuneSpeed = 1
+	}
+	if tuneRespawnMS <= 0 {
+		tuneRespawnMS = 30000
+	}
+	s.Log("info", "tuning", "speed_x", tuneSpeed, "respawn_ms", tuneRespawnMS)
 	sim := world.New(world.Options{
 		Zones:      zoneDefs,
 		Content:    content,
 		SavePos:    store.SaveCharacterPosition,
 		SaveChar:   store.SaveCharacterState,
 		SaveLedger: ledgerFlusher(s, store),
+		Tuning: world.Tuning{
+			SpeedMultiplier: tuneSpeed,
+			RespawnDelay:    time.Duration(tuneRespawnMS) * time.Millisecond,
+		},
 		MobSpawn: func(sim *world.Sim) {
 			world.SpawnMobs(sim, content, world.SpawnBands)
 		},

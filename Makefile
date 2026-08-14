@@ -16,7 +16,7 @@ export
 
 PG_URL := postgres://$(AETHERIA_PG_USER):$(AETHERIA_PG_PASSWORD)@$(AETHERIA_PG_HOST):$(AETHERIA_PG_PORT)/$(AETHERIA_PG_DB)?sslmode=disable
 
-.PHONY: all build test vet fmtcheck content migrate bottest loadtest questrun deploy export-client client-tests backup clean
+.PHONY: all build test vet fmtcheck content migrate bottest loadtest questrun deploy export-client client-tests backup clean publish-client
 
 all: test
 
@@ -92,6 +92,9 @@ export-client:
 	@cd client && $(GODOT) --headless --export-release Windows build/aetheria-windows.exe 2>&1 | grep -q "ERROR" && exit 1 || true
 	@cp client/config.json client/build/config.json
 	@echo "client exported to client/build/ (linux + windows + config.json)"
+
+publish-client: export-client
+	./deploy/publish-client.sh
 
 # ---- deploy ----
 deploy: build

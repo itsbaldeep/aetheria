@@ -304,3 +304,40 @@ func TestWorldClamp(t *testing.T) {
 		t.Fatalf("player resting at x=%.1f, want clamped to 300", pos.X)
 	}
 }
+
+func TestTuningSpeedAndRespawn(t *testing.T) {
+	s := New(Options{
+		Zones:  []*Zone{testZone},
+		Tick:   50 * time.Millisecond,
+		Logf:   func(f string, a ...any) { t.Logf(f, a...) },
+		Tuning: Tuning{SpeedMultiplier: 4, RespawnDelay: 5 * time.Second},
+	})
+	spawnTestPlayer(s, 1, Vec3{0, 0, 0}, 8)
+	// 8 m/s × 4 tuning = 32 m/s. Run 5 ticks (250 ms) → ~8 m east.
+	if err := s.SetMove(1, MoveIntent{Direction: Vec3{1, 0, 0}, Speed: 8}); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 5; i++ {
+		s.tickOnce(time.Now())
+	}
+	pos := s.PlayerPos(1)
+	if pos.X < 6 || pos.X > 10 {
+		t.Fatalf("tuned travel x=%.2f, want ~8 m (4x speed)", pos.X)
+	}
+
+	// Respawn tuning: kill a mob and check the respawn clock.
+	s.mu.Lock()
+	def := &MobDef{ID: "forest_boar", Name: "Forest Boar", Level: 1, HP: 50, ZoneID: "emberfield", XPReward: 20}
+	s.mobDefs["forest_boar"] = def
+	boar := NewMob(def, 500, Vec3{20, 0, 20})
+	s.mobs[boar.ID] = boar
+	s.grid.Insert(&boar.Entity)
+	p := s.players[1]
+	now := time.Now()
+	s.killMob(boar, p, now)
+	s.mu.Unlock()
+	delay := boar.respawnAt.Sub(now)
+	if delay < 4*time.Second || delay > 6*time.Second {
+		t.Fatalf("tuned respawn delay = %s, want ~5 s", delay)
+	}
+}

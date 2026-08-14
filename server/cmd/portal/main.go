@@ -9,6 +9,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/itsbaldeep/aetheria/server/internal/platform"
@@ -23,9 +25,18 @@ func main() {
 	mux.HandleFunc("/healthz", s.Healthz())
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		w.Write([]byte(`<!doctype html><html><head><title>Aetheria</title></head><body><h1>Aetheria</h1><p><a href="/register">Create account</a></p></body></html>`))
+		w.Write([]byte(`<!doctype html><html><head><title>Aetheria</title></head><body><h1>Aetheria</h1><p><a href="/register">Create account</a></p><p><a href="/download">Download the client</a></p></body></html>`))
 	})
 	mux.HandleFunc("/register", handleRegister(s, authURL))
+	downloadDir := platform.Env("AETHERIA_DOWNLOAD_DIR", "")
+	if downloadDir != "" {
+		mux.HandleFunc("/download", handleDownloadIndex(downloadDir))
+		mux.Handle("/download/", http.StripPrefix("/download/", http.FileServer(http.Dir(downloadDir))))
+	} else {
+		mux.HandleFunc("/download", func(w http.ResponseWriter, _ *http.Request) {
+			writeResult(w, "Client builds are not published yet.")
+		})
+	}
 
 	s.Log("info", "portal listening", "addr", addr)
 	if err := http.ListenAndServe(addr, mux); err != nil {
@@ -108,6 +119,27 @@ func friendlyError(e string) string {
 func writeResult(w http.ResponseWriter, msg string) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprintf(w, `<!doctype html><html><head><title>Aetheria</title></head><body><h1>Registration</h1><p>%s</p><p><a href="/register">Try again</a></p></body></html>`, msg)
+}
+
+// handleDownloadIndex lists the published client builds (files in the
+// download dir) so the human can grab the latest Windows/Linux bundle.
+func handleDownloadIndex(dir string) http.HandlerFunc {
+	return func(w http.ResponseWriter, _ *http.Request) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			writeResult(w, "No client builds published yet.")
+			return
+		}
+		var links strings.Builder
+		for _, e := range entries {
+			if e.IsDir() {
+				continue
+			}
+			fmt.Fprintf(&links, `<li><a href="/download/%s">%s</a></li>`, e.Name(), e.Name())
+		}
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<!doctype html><html><head><title>Downloads — Aetheria</title></head><body><h1>Client downloads</h1><p>Extract the zip, then run <code>aetheria-windows.exe</code>.</p><ul>%s</ul><p><a href="/">Back</a></p></body></html>`, links.String())
+	}
 }
 
 func clientIP(r *http.Request) string {

@@ -337,7 +337,7 @@ func (s *Sim) killMob(m *Mob, killer *Player, now time.Time) {
 	m.HP = 0
 	m.state = MobIdle
 	m.threat = map[uint64]int64{}
-	m.respawnAt = now.Add(30 * time.Second)
+	m.respawnAt = now.Add(s.tuning.RespawnDelay)
 	s.grid.Remove(&m.Entity)
 	s.sendCombat(killer.ID, m.ID, "kill", "kill", 0, fmt.Sprintf("%s kills %s", killer.Name, m.Name))
 	// XP to the killer (and anyone who hit the mob in the last 10 s — simple:

@@ -31,3 +31,9 @@ client/.import/
 
 # Logs
 *.log
+
+# local builds
+/portal
+/authserver
+/gameserver
+/adminserver

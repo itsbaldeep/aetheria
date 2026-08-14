@@ -51,6 +51,10 @@ services:
     container_name: aetheria-portal
     restart: unless-stopped
     env_file: ${AETHERIA_ENV_FILE:-/home/agency/aetheria/env}
+    environment:
+      - AETHERIA_DOWNLOAD_DIR=/srv/download
+    volumes:
+      - /home/agency/aetheria/client-builds:/srv/download:ro
     network_mode: host
     deploy:
       resources:

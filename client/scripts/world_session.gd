@@ -181,6 +181,13 @@ func leave_world() -> void:
 
 func _handle_frame(data: PackedByteArray) -> void:
 	var env := Envelope.decode(data)
+	if env.payload_type == "":
+		# Raw frame: the server writes aetheria.Pong unwrapped (not
+		# Envelope-wrapped). Decode it directly and emit the pong signal.
+		var pong := Pong.decode(data)
+		_ping_ms = Time.get_ticks_msec() - _ping_sent_at
+		emit_signal("pong", _ping_ms)
+		return
 	match env.payload_type:
 		"aetheria.ServerHello":
 			var m := ServerHello.decode(env.payload)
