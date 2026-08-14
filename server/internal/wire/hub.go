@@ -377,7 +377,7 @@ func (h *Hub) dispatch(ctx context.Context, st *connState, env *aet.Envelope) bo
 			return false
 		}
 		if err := h.sim.RespawnPlayer(st.session.CharacterID); err != nil {
-			h.s.Log("info", "respawn rejected", "char_id", st.session.CharacterID, "error", err)
+			h.s.Log("info", "respawn rejected", "char_id", st.session.CharacterID, "reason", err.Error())
 			h.enqueue(st, &aet.RespawnAck{Ok: false, Error: err.Error()})
 			return false
 		}
@@ -522,7 +522,7 @@ func (h *Hub) dispatch(ctx context.Context, st *connState, env *aet.Envelope) bo
 			return false
 		}
 		if err := h.sim.TurnInQuest(st.session.CharacterID, qt.QuestId); err != nil {
-			h.s.Log("info", "quest turn in rejected", "char_id", st.session.CharacterID, "quest", qt.QuestId, "error", err)
+			h.s.Log("info", "quest turn in rejected", "char_id", st.session.CharacterID, "quest", qt.QuestId, "reason", err.Error())
 			h.sendQuestError(st, &aet.QuestEvent{Ok: false, Error: err.Error(), QuestId: qt.QuestId})
 		}
 		return false

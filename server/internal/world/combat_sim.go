@@ -400,7 +400,10 @@ func (s *Sim) respawnLocked(p *Player) {
 		}
 	}
 	p.dirtySelf = true
-	p.known = make(map[uint64]*aet.EntityState)
+	// Keep p.known intact: the AOI diff in emitSnapshot turns every
+	// previously-known entity outside the shrine's AOI into DespawnIds, so
+	// clients forget the ghost mobs they knew before dying. Wiping the map
+	// here would leak those stale ids to every client.
 	s.grid.Insert(&p.Entity)
 	s.sendCombat(p.ID, p.ID, "respawn", "respawn", 0, fmt.Sprintf("%s respawns", p.Name))
 	s.persistChar(p)
@@ -417,10 +420,12 @@ func (s *Sim) processAutoAttack(p *Player, now time.Time) {
 	}
 	e := s.entityByID(p.autoAttack)
 	if e == nil {
+		s.logAA(p, "target-gone", 0, now, 0, 0)
 		p.autoAttack = 0
 		return
 	}
 	if e.Zone != p.Zone || p.Pos.Distance(e.Pos) > def.Range {
+		s.logAA(p, "range-zone", p.autoAttack, now, p.Pos.Distance(e.Pos), def.Range)
 		return
 	}
 	if cd := p.cooldowns[autoSkillFor(p.Class)]; cd > now.UnixMilli() {
@@ -430,6 +435,23 @@ func (s *Sim) processAutoAttack(p *Player, now time.Time) {
 	p.cooldowns[autoSkillFor(p.Class)] = now.UnixMilli() + 1000
 	req := CastRequest{SkillID: autoSkillFor(p.Class), TargetID: p.autoAttack}
 	s.resolveHit(p, def, req, now)
+}
+
+// logAA records an auto-attack silent no-op once per second (diagnostic).
+func (s *Sim) logAA(p *Player, why string, target uint64, now time.Time, dist, rng float64) {
+	if now.Sub(s.lastAALog) < time.Second {
+		return
+	}
+	s.lastAALog = now
+	m := s.mobs[target]
+	alive := false
+	mz := "?"
+	if m != nil {
+		alive = m.alive
+		mz = m.Zone
+	}
+	s.log("debug: autoattack noop why=%s player=%d zone=%s target=%d alive=%v dist=%.2f range=%.0f mobzone=%s",
+		why, p.CharacterID, p.Zone, target, alive, dist, rng, mz)
 }
 
 // autoSkillFor returns the auto-attack skill id for a class.

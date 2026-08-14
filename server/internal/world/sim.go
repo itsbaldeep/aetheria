@@ -112,6 +112,9 @@ type Sim struct {
 	logf func(format string, args ...any)
 	tick time.Duration
 
+	// lastAALog throttles the auto-attack no-op diagnostic.
+	lastAALog time.Time
+
 	// outboxBuffer is the per-player outbox channel capacity.
 	outboxBuffer int
 

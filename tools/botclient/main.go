@@ -400,7 +400,7 @@ func runQuester(wsURL, apiURL string) {
 
 	// The full chain can take several minutes (hunting + walking between
 	// town and the field bands); budget generously.
-	res, err := scenarios.Quester(wsURL, lg.Token, charID, 40*time.Minute, os.Stderr)
+	res, err := scenarios.Quester(wsURL, lg.Token, charID, 60*time.Minute, os.Stderr)
 	if err != nil {
 		fatal("quester: %v", err)
 	}

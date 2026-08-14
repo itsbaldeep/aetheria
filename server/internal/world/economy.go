@@ -19,8 +19,9 @@ const InventorySize = 24
 // pickupRadius is how close a player must be to a drop to pick it up.
 const pickupRadius = 3.0
 
-// dropTTL is how long a ground drop lasts before it despawns.
-const dropTTL = 2 * time.Minute
+// dropTTL is how long a ground drop lasts before it despawns. Generous so a
+// collect quest (hide/fang) stays completable after walking back to town.
+const dropTTL = 10 * time.Minute
 
 // Equipment slot names.
 const (

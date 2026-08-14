@@ -7,6 +7,7 @@ package scenarios
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -24,6 +25,14 @@ type WorldBot struct {
 	// concurrent writer, and the combat scenario writes from both the main
 	// loop and the heartbeat goroutine.
 	writeMu sync.Mutex
+
+	// frames feeds Envelopes from a background reader goroutine (see
+	// startReadPump). coder/websocket closes the socket when a read context is
+	// cancelled, so consumers must never cancel the socket read; the pump owns
+	// the socket and waits select on frames with their own timeouts.
+	frames   chan *aet.Envelope
+	pumpErr  error // set once before frames is closed
+	stopPump chan struct{}
 
 	EntityID uint64
 	ZoneID   string
@@ -117,11 +126,46 @@ func ConnectWorld(ctx context.Context, wsURL, token string, charID int64) (*Worl
 		ZoneID:   ack.ZoneId,
 		MaxSpeed: float64(ack.MaxSpeed),
 		Seen:     make(map[uint64]*aet.EntityState),
+		frames:   make(chan *aet.Envelope, 64),
+		stopPump: make(chan struct{}),
 	}
 	if ack.Position != nil {
 		b.PosX, b.PosY, b.PosZ = float64(ack.Position.X), float64(ack.Position.Y), float64(ack.Position.Z)
 	}
+	b.startReadPump()
 	return b, nil
+}
+
+// startReadPump owns the socket read loop. The socket is never read anywhere
+// else: coder/websocket tears the connection down when a read context is
+// cancelled, so all consumer waits time out against `frames` instead. The
+// pump exits (closing frames) when the connection errors or stopPump fires.
+func (b *WorldBot) startReadPump() {
+	go func() {
+		defer close(b.frames)
+		for {
+			select {
+			case <-b.stopPump:
+				return
+			default:
+			}
+			_, data, err := b.conn.Read(context.Background())
+			if err != nil {
+				b.pumpErr = err
+				return
+			}
+			env := &aet.Envelope{}
+			if err := proto.Unmarshal(data, env); err != nil {
+				b.pumpErr = fmt.Errorf("scenarios: unmarshal frame: %w", err)
+				return
+			}
+			select {
+			case b.frames <- env:
+			case <-b.stopPump:
+				return
+			}
+		}
+	}()
 }
 
 // write serializes a frame onto the socket. All outbound frames go through
@@ -391,21 +435,32 @@ func (b *WorldBot) DrainCombat() []*aet.CombatEvent {
 }
 
 // ReadFrame reads one frame (any payload type) and routes it into the bot's
-// state. Returns an envelope (never nil on success).
+// state. Returns an envelope (never nil on success). The socket is owned by
+// the read pump, so a bounded ctx here only times out the channel wait and
+// never cancels the connection read.
 func (b *WorldBot) ReadFrame(ctx context.Context) (*aet.Envelope, error) {
-	_, data, err := b.conn.Read(ctx)
-	if err != nil {
-		return nil, err
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case env, ok := <-b.frames:
+		if !ok {
+			if b.pumpErr != nil {
+				return nil, b.pumpErr
+			}
+			return nil, io.EOF
+		}
+		b.routeFrame(env)
+		return env, nil
 	}
-	env := &aet.Envelope{}
-	if err := proto.Unmarshal(data, env); err != nil {
-		return env, fmt.Errorf("scenarios: unmarshal frame: %w", err)
-	}
+}
+
+// routeFrame applies a frame's payload to the bot's state.
+func (b *WorldBot) routeFrame(env *aet.Envelope) {
 	switch env.PayloadType {
 	case "aetheria.WorldSnapshot":
 		snap := &aet.WorldSnapshot{}
 		if err := proto.Unmarshal(env.Payload, snap); err != nil {
-			return env, fmt.Errorf("scenarios: unmarshal snapshot: %w", err)
+			return
 		}
 		b.SnapshotCount++
 		for _, e := range snap.Self {
@@ -458,7 +513,6 @@ func (b *WorldBot) ReadFrame(ctx context.Context) (*aet.Envelope, error) {
 			b.LastQuestStatus = qs
 		}
 	}
-	return env, nil
 }
 
 // DrainQuests returns and clears accumulated QuestEvents (M5).
@@ -611,10 +665,16 @@ func (b *WorldBot) PingRoundTrip(ctx context.Context) (int64, error) {
 	}
 }
 
-// Close sends LeaveWorld (best effort) and closes the socket.
+// Close sends LeaveWorld (best effort), stops the read pump, and closes the
+// socket.
 func (b *WorldBot) Close() {
 	if b.conn == nil {
 		return
+	}
+	select {
+	case <-b.stopPump:
+	default:
+		close(b.stopPump)
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
