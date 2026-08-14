@@ -5,9 +5,12 @@ package scenarios
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"time"
+
+	aet "github.com/itsbaldeep/aetheria/server/gen"
 )
 
 // ChatResult summarizes a chat relay run.
@@ -120,11 +123,13 @@ func Chat(wsURL, token string, charIDA, charIDB int64, timeout time.Duration, db
 }
 
 // waitForChat reads frames until a ChatMessage with the given text arrives.
+// Each read is bounded so an idle server (no frames) still lets the deadline
+// take effect instead of blocking on the caller's long-lived context.
 func waitForChat(ctx context.Context, b *WorldBot, want string) error {
 	start := len(b.Chat)
 	deadline := time.Now().Add(2 * time.Second)
 	for time.Now().Before(deadline) {
-		if env, err := b.ReadFrame(ctx); err != nil {
+		if env, err := boundedRead(ctx, b, 150*time.Millisecond); err != nil {
 			return fmt.Errorf("read: %w", err)
 		} else if env.PayloadType == "aetheria.WorldSnapshot" {
 			// snapshots are fine; keep draining
@@ -143,7 +148,7 @@ func chatArrived(ctx context.Context, b *WorldBot, want string, d time.Duration)
 	start := len(b.Chat)
 	deadline := time.Now().Add(d)
 	for time.Now().Before(deadline) {
-		if _, err := b.ReadFrame(ctx); err != nil {
+		if _, err := boundedRead(ctx, b, 100*time.Millisecond); err != nil {
 			return false, fmt.Errorf("read: %w", err)
 		}
 		for _, cm := range b.Chat[start:] {
@@ -153,4 +158,15 @@ func chatArrived(ctx context.Context, b *WorldBot, want string, d time.Duration)
 		}
 	}
 	return false, nil
+}
+
+// boundedRead reads one frame with a short timeout so callers can poll.
+func boundedRead(ctx context.Context, b *WorldBot, d time.Duration) (*aet.Envelope, error) {
+	rctx, cancel := context.WithTimeout(ctx, d)
+	defer cancel()
+	env, err := b.ReadFrame(rctx)
+	if errors.Is(err, context.DeadlineExceeded) {
+		return &aet.Envelope{}, nil
+	}
+	return env, err
 }

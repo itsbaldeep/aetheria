@@ -33,6 +33,7 @@ type WorldBot struct {
 	frames   chan *aet.Envelope
 	pumpErr  error // set once before frames is closed
 	stopPump chan struct{}
+	pongCh   chan *aet.Pong // raw (unwrapped) Pong frames, for ping round-trips
 
 	EntityID uint64
 	ZoneID   string
@@ -128,6 +129,7 @@ func ConnectWorld(ctx context.Context, wsURL, token string, charID int64) (*Worl
 		Seen:     make(map[uint64]*aet.EntityState),
 		frames:   make(chan *aet.Envelope, 64),
 		stopPump: make(chan struct{}),
+		pongCh:   make(chan *aet.Pong, 4),
 	}
 	if ack.Position != nil {
 		b.PosX, b.PosY, b.PosZ = float64(ack.Position.X), float64(ack.Position.Y), float64(ack.Position.Z)
@@ -158,6 +160,19 @@ func (b *WorldBot) startReadPump() {
 			if err := proto.Unmarshal(data, env); err != nil {
 				b.pumpErr = fmt.Errorf("scenarios: unmarshal frame: %w", err)
 				return
+			}
+			if env.PayloadType == "" {
+				// Raw frame: the server sends Pong unwrapped (hub.enqueue
+				// writes the aet.Pong proto directly). Unmarshal as Pong and
+				// hand it to ping waiters; anything else raw is dropped.
+				var pong aet.Pong
+				if err := proto.Unmarshal(data, &pong); err == nil {
+					select {
+					case b.pongCh <- &pong:
+					default:
+					}
+				}
+				continue
 			}
 			select {
 			case b.frames <- env:
@@ -641,27 +656,16 @@ func (b *WorldBot) PingRoundTrip(ctx context.Context) (int64, error) {
 	if err := b.write(ctx, ping); err != nil {
 		return 0, err
 	}
+	// The read pump owns the socket; it routes the raw Pong onto pongCh.
 	for {
-		_, data, err := b.conn.Read(ctx)
-		if err != nil {
-			return 0, err
+		select {
+		case pong := <-b.pongCh:
+			if pong.SentAtUnixMs == sent {
+				return time.Now().UnixMilli() - sent, nil
+			}
+		case <-ctx.Done():
+			return 0, ctx.Err()
 		}
-		// The server sends Pong as a raw aetheria.Pong (not Envelope-wrapped);
-		// world frames arrive as Envelope-wrapped WorldSnapshots. A Pong proto
-		// unmarshalled as an Envelope yields empty PayloadType, so accept a
-		// frame as a candidate pong only when it is not an Envelope.
-		env := &aet.Envelope{}
-		if proto.Unmarshal(data, env) == nil && env.PayloadType != "" {
-			continue
-		}
-		pong := &aet.Pong{}
-		if err := proto.Unmarshal(data, pong); err != nil {
-			continue
-		}
-		if pong.SentAtUnixMs != sent {
-			continue
-		}
-		return time.Now().UnixMilli() - sent, nil
 	}
 }
 
