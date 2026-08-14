@@ -9,5 +9,7 @@ func _ready() -> void:
 	var cfg: ClientConfig = ClientConfig.load_default()
 	print("[aetheria-client] api=%s ws=%s" % [cfg.api_base, cfg.ws_url])
 	var login: Node = load("res://scenes/Login.tscn").instantiate()
-	get_tree().root.add_child(login)
+	# The root is still busy setting up children during the main scene's _ready;
+	# a direct add_child here fails silently (blank window). Defer it.
+	get_tree().root.add_child.call_deferred(login)
 	queue_free()
