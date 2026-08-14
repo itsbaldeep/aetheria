@@ -64,5 +64,13 @@ func _on_play_pressed() -> void:
 	if selected.is_empty():
 		return
 	var idx: int = selected[0]
-	var name: String = str(session.characters[idx].get("name", ""))
-	print("[aetheria-client] play %s (world loads in M2)" % name)
+	var character: Dictionary = session.characters[idx]
+	var name: String = str(character.get("name", ""))
+	print("[aetheria-client] entering world as %s" % name)
+	var cfg := ClientConfig.load_default()
+	var scene: Node = load("res://scenes/World.tscn").instantiate()
+	scene.session = session
+	scene.character = character
+	scene.ws_url = cfg.ws_url
+	get_tree().root.add_child(scene)
+	queue_free()

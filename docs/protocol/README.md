@@ -86,6 +86,12 @@ confirms every mutation and reports the player's new gold balance. All gold
 mutations write a signed `gold_ledger` row; the audit invariant is
 `sum(gold_ledger) == world gold`.
 
+## M5 additions
+
+`EntityState` also carries self-only `mp`, `max_mp`, `xp` and `xp_for_level`
+(fields 13–16) on the receiving player's own snapshot so the client can draw
+mana and XP bars from live server data. Mobs/NPCs leave them zero.
+
 ## Message index
 
 - Envelope

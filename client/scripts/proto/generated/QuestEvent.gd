@@ -50,7 +50,7 @@ static func decode(data: PackedByteArray) -> QuestEvent:
 			6:
 				m.turnin_npc = w.read_string()
 			7:
-				m.objectives = w.read_bytes(w.read_varint())
+				m.objectives.append(w.read_bytes(w.read_varint()))
 			8:
 				m.xp_reward = w.read_varint()
 			9:

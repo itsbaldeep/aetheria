@@ -5,7 +5,7 @@ class_name WorldSnapshot
 
 var tick: int = 0
 var self_id: int = 0
-var self: Array = []
+var _self: Array = []
 var entities: Array = []
 var despawn_ids: Array = []
 
@@ -13,7 +13,7 @@ func encode() -> PackedByteArray:
 	var w := ProtoWire.new()
 	w.write_int64_field(1, tick)
 	w.write_int64_field(2, self_id)
-	for item in self:
+	for item in _self:
 		w.write_bytes_field(3, item)
 	for item in entities:
 		w.write_bytes_field(4, item)
@@ -34,11 +34,15 @@ static func decode(data: PackedByteArray) -> WorldSnapshot:
 			2:
 				m.self_id = w.read_varint()
 			3:
-				m.self = w.read_bytes(w.read_varint())
+				m._self.append(w.read_bytes(w.read_varint()))
 			4:
-				m.entities = w.read_bytes(w.read_varint())
+				m.entities.append(w.read_bytes(w.read_varint()))
 			5:
-				m.despawn_ids = w.read_varint()
+				if f[1] == 2:
+					var n := w.read_varint()
+					for i in range(n): m.despawn_ids.append(w.read_varint())
+				else:
+					m.despawn_ids.append(w.read_varint())
 			_:
 				w.skip(f[1])
 

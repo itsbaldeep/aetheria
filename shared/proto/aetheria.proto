@@ -112,6 +112,10 @@ message EntityState {
   int32 level = 10;
   bool is_moving = 11;
   string ref_id = 12;      // def id (mob def id / npc def id) for targeting
+  int64 mp = 13;           // self-only: current mana
+  int64 max_mp = 14;       // self-only: max mana
+  int64 xp = 15;           // self-only: XP earned into the current level
+  int64 xp_for_level = 16; // self-only: XP needed for the next level
 }
 
 // Server → client: one 20 Hz AOI snapshot. `entities` are new-or-changed

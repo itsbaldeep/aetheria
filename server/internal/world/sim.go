@@ -563,7 +563,7 @@ func (s *Sim) emitSnapshot(p *Player) {
 	}
 
 	if p.dirtySelf {
-		snap.Self = append(snap.Self, p.State())
+		snap.Self = append(snap.Self, p.SelfState())
 		p.dirtySelf = false
 	}
 

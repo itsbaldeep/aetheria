@@ -363,6 +363,7 @@ func (s *Sim) grantXP(p *Player, m *Mob) {
 	s.sendCombat(p.ID, m.ID, "xp", "xp", def.XPReward, fmt.Sprintf("%s gains %d XP", p.Name, def.XPReward))
 	level, xp, leveled := XPToLevel(p.Level, p.XP)
 	p.XP = xp
+	p.dirtySelf = true
 	if leveled {
 		p.Level = level
 		p.MaxHP = 100 + 20*int64(level-1)

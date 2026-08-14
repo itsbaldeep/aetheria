@@ -43,9 +43,9 @@ static func decode(data: PackedByteArray) -> NpcDialogEvent:
 			5:
 				m.dialog = w.read_string()
 			6:
-				m.available_quests = w.read_string()
+				m.available_quests.append(w.read_string())
 			7:
-				m.turnin_quests = w.read_string()
+				m.turnin_quests.append(w.read_string())
 			_:
 				w.skip(f[1])
 

@@ -692,7 +692,11 @@ type EntityState struct {
 	MaxHp         int64                  `protobuf:"varint,9,opt,name=max_hp,json=maxHp,proto3" json:"max_hp,omitempty"`
 	Level         int32                  `protobuf:"varint,10,opt,name=level,proto3" json:"level,omitempty"`
 	IsMoving      bool                   `protobuf:"varint,11,opt,name=is_moving,json=isMoving,proto3" json:"is_moving,omitempty"`
-	RefId         string                 `protobuf:"bytes,12,opt,name=ref_id,json=refId,proto3" json:"ref_id,omitempty"` // def id (mob def id / npc def id) for targeting
+	RefId         string                 `protobuf:"bytes,12,opt,name=ref_id,json=refId,proto3" json:"ref_id,omitempty"`                   // def id (mob def id / npc def id) for targeting
+	Mp            int64                  `protobuf:"varint,13,opt,name=mp,proto3" json:"mp,omitempty"`                                     // self-only: current mana
+	MaxMp         int64                  `protobuf:"varint,14,opt,name=max_mp,json=maxMp,proto3" json:"max_mp,omitempty"`                  // self-only: max mana
+	Xp            int64                  `protobuf:"varint,15,opt,name=xp,proto3" json:"xp,omitempty"`                                     // self-only: XP earned into the current level
+	XpForLevel    int64                  `protobuf:"varint,16,opt,name=xp_for_level,json=xpForLevel,proto3" json:"xp_for_level,omitempty"` // self-only: XP needed for the next level
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -809,6 +813,34 @@ func (x *EntityState) GetRefId() string {
 		return x.RefId
 	}
 	return ""
+}
+
+func (x *EntityState) GetMp() int64 {
+	if x != nil {
+		return x.Mp
+	}
+	return 0
+}
+
+func (x *EntityState) GetMaxMp() int64 {
+	if x != nil {
+		return x.MaxMp
+	}
+	return 0
+}
+
+func (x *EntityState) GetXp() int64 {
+	if x != nil {
+		return x.Xp
+	}
+	return 0
+}
+
+func (x *EntityState) GetXpForLevel() int64 {
+	if x != nil {
+		return x.XpForLevel
+	}
+	return 0
 }
 
 // Server → client: one 20 Hz AOI snapshot. `entities` are new-or-changed
@@ -2363,7 +2395,7 @@ const file_aetheria_proto_rawDesc = "" +
 	"\x06target\x18\x01 \x01(\v2\x0e.aetheria.Vec3R\x06target\x12,\n" +
 	"\tdirection\x18\x02 \x01(\v2\x0e.aetheria.Vec3R\tdirection\x12\x14\n" +
 	"\x05speed\x18\x03 \x01(\x02R\x05speed\x12\x13\n" +
-	"\x05rot_y\x18\x04 \x01(\x02R\x04rotY\"\xc0\x02\n" +
+	"\x05rot_y\x18\x04 \x01(\x02R\x04rotY\"\x99\x03\n" +
 	"\vEntityState\x12\x1b\n" +
 	"\tentity_id\x18\x01 \x01(\x04R\bentityId\x12\x1f\n" +
 	"\ventity_type\x18\x02 \x01(\tR\n" +
@@ -2378,7 +2410,12 @@ const file_aetheria_proto_rawDesc = "" +
 	"\x05level\x18\n" +
 	" \x01(\x05R\x05level\x12\x1b\n" +
 	"\tis_moving\x18\v \x01(\bR\bisMoving\x12\x15\n" +
-	"\x06ref_id\x18\f \x01(\tR\x05refId\"\xbb\x01\n" +
+	"\x06ref_id\x18\f \x01(\tR\x05refId\x12\x0e\n" +
+	"\x02mp\x18\r \x01(\x03R\x02mp\x12\x15\n" +
+	"\x06max_mp\x18\x0e \x01(\x03R\x05maxMp\x12\x0e\n" +
+	"\x02xp\x18\x0f \x01(\x03R\x02xp\x12 \n" +
+	"\fxp_for_level\x18\x10 \x01(\x03R\n" +
+	"xpForLevel\"\xbb\x01\n" +
 	"\rWorldSnapshot\x12\x12\n" +
 	"\x04tick\x18\x01 \x01(\x04R\x04tick\x12\x17\n" +
 	"\aself_id\x18\x02 \x01(\x04R\x06selfId\x12)\n" +

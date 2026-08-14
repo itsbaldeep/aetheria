@@ -22,7 +22,7 @@ static func decode(data: PackedByteArray) -> QuestStatusEvent:
 		if f[0] < 0: break
 		match f[0]:
 			1:
-				m.quests = w.read_bytes(w.read_varint())
+				m.quests.append(w.read_bytes(w.read_varint()))
 			2:
 				m.error = w.read_string()
 			_:

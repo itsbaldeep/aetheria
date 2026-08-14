@@ -36,7 +36,7 @@ static func decode(data: PackedByteArray) -> QuestState:
 			4:
 				m.turnin_npc = w.read_string()
 			5:
-				m.objectives = w.read_bytes(w.read_varint())
+				m.objectives.append(w.read_bytes(w.read_varint()))
 			_:
 				w.skip(f[1])
 

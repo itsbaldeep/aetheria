@@ -104,6 +104,17 @@ type Player struct {
 	shieldExpiry time.Time
 }
 
+// SelfState is the receiving player's own EntityState, extended with MP/XP so
+// the client can render mana and XP bars from live server data.
+func (p *Player) SelfState() *aet.EntityState {
+	st := p.Entity.State()
+	st.Mp = p.MP
+	st.MaxMp = p.MaxMP
+	st.Xp = p.XP
+	st.XpForLevel = MaxXPForLevel(p.Level)
+	return st
+}
+
 // PlayerState is a Player's public snapshot (for bots/health).
 type PlayerState struct {
 	ID          uint64

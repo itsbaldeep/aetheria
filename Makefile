@@ -55,6 +55,7 @@ client-tests:
 	@cd client && $(GODOT) --headless --path . --script res://scripts/test_proto.gd 2>&1 | grep -q "ALL PASS" && echo "godot proto tests: PASS"
 	@cd client && $(GODOT) --headless --path . --script res://scripts/test_session.gd 2>&1 | grep -q "ALL PASS" && echo "godot session tests: PASS"
 	@cd client && $(GODOT) --headless --path . --script res://scripts/test_scenes.gd 2>&1 | grep -q "ALL PASS" && echo "godot scene tests: PASS"
+	@cd client && $(GODOT) --headless --path . --script res://scripts/test_world_session.gd 2>&1 | grep -q "ALL PASS" && echo "godot world-session tests: PASS"
 
 # ---- database ----
 migrate:

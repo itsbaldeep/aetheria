@@ -26,7 +26,7 @@ ENUM_GD = "int"
 VARINT_TYPES = {"int32", "int64", "uint32", "uint64", "bool"}
 WIRE_TYPES = {"float": 5, "double": 1}  # unused in MVP, listed for completeness
 
-GD_RESERVED = {"class_name", "extends", "static", "var", "func", "if", "else", "match", "return", "break"}
+GD_RESERVED = {"class_name", "extends", "static", "var", "func", "if", "else", "match", "return", "break", "self"}
 
 
 def gd_name(name: str) -> str:
@@ -80,7 +80,24 @@ def emit_message(msg_name: str, fields: list, out: Path) -> None:
         gd = SCALAR_GD.get(f["type"], "PackedByteArray")
         v = gd_name(f["name"])
         lines.append(f"\t\t\t{f['num']}:")
-        if gd == "String":
+        if f["repeated"]:
+            if gd == "String":
+                lines.append(f"\t\t\t\tm.{v}.append(w.read_string())")
+            elif gd == "PackedByteArray":
+                lines.append(f"\t\t\t\tm.{v}.append(w.read_bytes(w.read_varint()))")
+            elif gd == "float":
+                lines.append(f"\t\t\t\tm.{v}.append(w.read_float())")
+            elif gd == "bool":
+                lines.append(f"\t\t\t\tm.{v}.append(w.read_varint() != 0)")
+            else:
+                # Repeated scalars are packed (LEN) by the Go codegen; tolerate
+                # unpacked rows too so client-side round-trips still decode.
+                lines.append(f"\t\t\t\tif f[1] == 2:")
+                lines.append(f"\t\t\t\t\tvar n := w.read_varint()")
+                lines.append(f"\t\t\t\t\tfor i in range(n): m.{v}.append(w.read_varint())")
+                lines.append(f"\t\t\t\telse:")
+                lines.append(f"\t\t\t\t\tm.{v}.append(w.read_varint())")
+        elif gd == "String":
             lines.append(f"\t\t\t\tm.{v} = w.read_string()")
         elif gd == "PackedByteArray":
             lines.append(f"\t\t\t\tm.{v} = w.read_bytes(w.read_varint())")
