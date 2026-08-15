@@ -16,7 +16,7 @@ export
 
 PG_URL := postgres://$(AETHERIA_PG_USER):$(AETHERIA_PG_PASSWORD)@$(AETHERIA_PG_HOST):$(AETHERIA_PG_PORT)/$(AETHERIA_PG_DB)?sslmode=disable
 
-.PHONY: all build test vet fmtcheck content migrate bottest loadtest questrun deploy export-client client-tests backup clean publish-client
+.PHONY: all build test vet fmtcheck content migrate bottest loadtest questrun deploy export-client client-tests backup clean publish-client screenshots
 
 all: test
 
@@ -106,3 +106,13 @@ backup:
 
 clean:
 	rm -rf server/bin
+
+# ---- screenshots (M5.5 §1) ----
+# Runs the real Godot client under Xvfb + software GL (llvmpipe) on the VPS,
+# captures every screen/UI state to docs/screens/<sha>/, and publishes the
+# gallery to the admin server (https://admin.<domain>/screens?t=<token>).
+# No GPU/display/sudo required — Xvfb + Mesa are built into a user-space
+# prefix on first run. Forward API/WS endpoints to enable server-gated stages:
+#   make screenshots ARGS="--api http://127.0.0.1:3016 --ws ws://127.0.0.1:3015/ws"
+screenshots:
+	@./tools/screens/run_tour.sh $(ARGS)

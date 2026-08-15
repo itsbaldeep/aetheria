@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/itsbaldeep/aetheria/server/internal/platform"
+	"github.com/itsbaldeep/aetheria/server/internal/screens"
 )
 
 func main() {
@@ -14,6 +15,10 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/healthz", s.Healthz())
+	// M5.5 §1: screenshot review gallery (gated by AETHERIA_SCREENS_TOKEN
+	// until M8 lands full TOTP admin auth).
+	screens.Mount(mux, s, platform.Env("AETHERIA_SCREEN_GALLERY", "/srv/screens"),
+		platform.Env("AETHERIA_SCREENS_TOKEN", ""))
 	// M8: dashboard routes, auth + TOTP, audit log.
 
 	s.Log("info", "adminserver listening", "addr", addr)

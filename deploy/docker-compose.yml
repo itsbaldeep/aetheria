@@ -38,6 +38,10 @@ services:
     container_name: aetheria-adminserver
     restart: unless-stopped
     env_file: ${AETHERIA_ENV_FILE:-/home/agency/aetheria/env}
+    environment:
+      - AETHERIA_SCREEN_GALLERY=/srv/screens
+    volumes:
+      - /home/agency/aetheria/screens:/srv/screens:ro
     network_mode: host
     deploy:
       resources:

@@ -28,6 +28,22 @@ public releases, playtest gates, and anything Yellow (root bible §5).
   assets. Log unmet art needs to `HUMAN_TODO.md` and continue.
 - **Transactional economy.** Every gold/item mutation in one audited code path
   inside a DB transaction + `gold_ledger` row. No exceptions.
+- **Screenshot-gated client changes (M5.5 §0, permanent).** No client-facing
+  change is DONE until `make screenshots` has regenerated the tour, published
+  the gallery (admin.<domain>/screens), and the human has approved in
+  FEEDBACK.md. "Tests green" alone is never sufficient for anything the player
+  sees. Never paste screenshot/binary content into your own context — reference
+  the gallery URL.
+- **Session-per-task work blocks (M5.5 §6).** Each work block is a FRESH
+  session that does exactly ONE checklist item (or one FEEDBACK fix), then
+  stops. Do not start a second item in the same block — it triggers
+  auto-compact churn that wastes the budget. STATE.md is the cross-session
+  memory; trust it.
+- **Block contract.** Every headless work block runs the prompt at
+  `docs/BLOCK_PROMPT.md` (derived from docs/AGENCY_INTEGRATION.md §2): read
+  memory → fold FEEDBACK → one item → self-verify (make test; make bottest if
+  server touched; make screenshots if client touched) → stage any human need
+  per AGENCY_INTEGRATION §3 → update STATE.md + CHANGELOG → one-line report.
 
 ## 3. Build / test / deploy commands
 ```
@@ -39,6 +55,7 @@ make migrate       # goose up (postgres)
 make build         # build all four server binaries
 make deploy        # build → migrate → rolling restart with drain (systemd)
 make export-client # Godot → Linux+Windows binaries
+make screenshots   # M5.5: regenerate UI screenshot tour + publish gallery (run after every client-facing block)
 make content       # regenerate protobuf + docs/protocol.md
 ```
 Every shell command runs under `timeout`. Builds run with `nice`/`ionice`.

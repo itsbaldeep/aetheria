@@ -29,6 +29,10 @@ deploy/env
 client/.import/
 *.import
 
+# Screenshot tour output (M5.5 §1) — PNGs/webp published to the admin gallery,
+# never committed (binaries, like client builds).
+docs/screens/
+
 # Logs
 *.log
 

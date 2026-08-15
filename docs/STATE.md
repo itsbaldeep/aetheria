@@ -3,8 +3,67 @@
 Update at the end of every work block. Read at the start of every session.
 
 ## Current milestone
-**M4 — Items, Inventory, Loot, Vendors** (complete: make test + bottest green
-live, ledger invariant verified against live DB — ready for m4-complete tag)
+**M5.5 — Client UI/UX Overhaul** (mandatory; blocks M6 AND blocks the
+`m5-complete` tag — the first Windows-build playtest verdict was "no-effort UI,
+didn't feel like a game"). M5 server acceptance is met live; m5-complete is held
+until M5.5 §5 passes and the human signs the gallery off in FEEDBACK.md.
+See docs/M5_5_UI_UX_OVERHAUL.md + docs/AGENCY_INTEGRATION.md.
+
+## Milestone checklists
+
+### M5 — Quests & Town (current)
+- [x] quest framework + 15-quest Havenport chain + NPC givers + persistence
+- [x] quest UI client layer: tracker, log, NPC dialog (accept/turn-in)
+- [x] `make questrun` master regression — ALL PASS local (run14, level 10) and
+      against live production (15/15 quests, 30 kills, 7 pickups).
+- [x] production deploy of M4/M5 server code (`make deploy`, all 4 healthy).
+- [x] `make bottest` green against production (M1–M4 acceptance).
+- [x] full playable world client: session/transport, themed HUD, procedural
+      Emberfield, movement/combat/chat/quests (see Last session log).
+- [x] server tuning knobs (AETHERIA_TUNE_SPEED / _RESPAWN_MS) — fast questrun
+      + snappier playtests; live at 4x speed / 5 s respawn.
+- [x] client download page (portal /download) + make publish-client + CI
+      questrun job (pushes to main only).
+- [ ] inventory/equip/vendor UI in Godot (needs M4 InventoryList/equip wire
+      push to render) — M6+ first client pass.
+- [ ] tag m5-complete — BLOCKED on M5.5 §5 (human gallery sign-off in
+      FEEDBACK.md). Do not tag until M5.5-complete is tagged.
+
+### M5.5 — Client UI/UX Overhaul (current; blocks M6 + m5-complete)
+Rollout order per docs/AGENCY_INTEGRATION.md §5:
+- [x] 1. Commit M5_5 + AGENCY_INTEGRATION docs; update AGENTS.md standing rules
+      (screenshot gate, session-per-task, §2 block contract) + docs/BLOCK_PROMPT.md.
+- [x] 2. Build M5.5 §1 screenshot pipeline — DONE this block: user-space Xvfb +
+      Mesa llvmpipe prefix (no sudo) + LD_PRELOAD xkbcomp shim, ScreenshotTour.gd
+      (16 offline stages covering login×3, charselect×3, HUD×10; 2 server-gated
+      stages skip offline), `make screenshots` target, adminserver `/screens`
+      gallery (bearer-token gate, bind-mounted volume, side-by-side compare),
+      docs/runbook.md. Verified: `make screenshots` → 16 PNGs + webp thumbs →
+      published to https://admin.aetheria.apps.deployden.tech/screens?t=<token>
+      (404 without token). `make test` green (go test + godot headless 4/4).
+      screens: ac9c4cb awaiting review.
+- [ ] 3. Implement AGENCY_INTEGRATION §1.1 enqueuer + §1.2 worker handler +
+      §1.3 `.manual` expiry (agency-os repo PR), register/repair job 12, add
+      GLM-5.2 to MODEL_PRICING. Also add `aetheria_screens` + `aetheria_gate` +
+      `aetheria_human_todo` to the agency-os `approval_type` enum (migration) —
+      they don't exist yet, so this block staged the first screens review via
+      the existing `deploy` type (approval id=60) as a stopgap.
+- [ ] 4. Stage first `aetheria_screens` approval from the pipeline's maiden run
+      (validates §3 end-to-end) — staged this block via orch.
+- [ ] 5. Dashboard §4 changes as a dev-task PR on agency-dashboard.
+- [ ] 6. Remove `.manual`, enable job 12, watch two unattended blocks go green.
+- [ ] M5.5 §2 art direction: design tokens + theme resource, ornate-panel
+      layout skeleton, no-default-theme automated check.
+- [ ] M5.5 §3 game feel ("juice"): FCT, hit feedback, target rings, cast bars,
+      skill-bar cooldown sweep, camera spring, audio, level-up/quest banners.
+- [ ] M5.5 §4 onboarding & discoverability: hint toasts, first-giver beacon,
+      objective chevrons/minimap markers, H help + ESC menu, empty states.
+- [ ] M5.5 §5 acceptance: make screenshots deterministic + published; zero
+      default-theme controls; §2/§3/§4 implemented; VRoid chars animated
+      (blocked on HUMAN models); 60fps@1080p medium; human verdict
+      "looks and feels like a real game" → tag m5.5-complete → then m5-complete.
+- [ ] HUMAN follow-up: screenshot_bot account + GM token for the 2 server-gated
+      tour stages (logged in HUMAN_TODO.md).
 
 ## Milestone checklists
 
@@ -132,15 +191,59 @@ live, ledger invariant verified against live DB — ready for m4-complete tag)
       ALL PASS over live public endpoints. bottest now runs full-auth.
 
 ## Blockers
-None. (HUMAN_TODO: VRoid models, Mixamo anims, off-box backup target — none block M4.)
+m5-complete tag is BLOCKED on M5.5 §5 (human gallery sign-off in FEEDBACK.md).
+VRoid models + UI art are HUMAN_TODO (M5_5 §2) — they gate the "VRoid chars
+animated" acceptance line but NOT the rest of M5.5; ship everything else with
+flat-color token placeholders.
+
 ## Next action
-Tag m4-complete and push. Then brief §212 next steps: inventory UI, vendor
-UI, equipment UI in Godot (client layer); M5 quests.
+M5.5 rollout item 3: implement the Agency OS enqueuer + worker handler
+(docs/AGENCY_INTEGRATION.md §1) as a small PR on the agency-os repo, repair job
+12, add GLM-5.2 to MODEL_PRICING. Meanwhile, the human should review
+screens ac9c4cb at the gallery URL and write verdicts in FEEDBACK.md.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-15 (M5.5 kickoff): human playtest verdict on first Windows build was
+  "no-effort UI, didn't feel like a game" → created docs/M5_5_UI_UX_OVERHAUL.md
+  (mandatory UI/UX overhaul, blocks M6 + m5-complete) and
+  docs/AGENCY_INTEGRATION.md (Agency OS loop automation: enqueuer job +
+  worker task type + dashboard visibility). Updated AGENTS.md standing rules
+  (screenshot-gated client changes, session-per-task work blocks, block
+  contract) + created docs/BLOCK_PROMPT.md. Built M5.5 §1 screenshot pipeline:
+  the VPS has no GPU/display/sudo, so Xvfb+Mesa were extracted into a
+  user-space prefix (~/.local/xvfb-prefix) with an LD_PRELOAD shim that
+  redirects the X server's hardcoded /usr/bin/xkbcomp into the prefix;
+  llvmpipe software GL confirmed ("OpenGL 4.5 Mesa llvmpipe"). client/tools/
+  ScreenshotTour.gd drives the real scenes/HUD via public APIs across 16
+  offline stages (login×3, charselect×3, HUD×10) + 2 server-gated stages that
+  skip offline. make screenshots → docs/screens/<sha>/ + webp thumbs, published
+  to /home/agency/aetheria/screens (bind-mounted into aetheria-adminserver).
+  server/internal/screens gallery on adminserver /screens (bearer-token gate,
+  AETHERIA_SCREENS_TOKEN, side-by-side compare), docker-compose volume added,
+  admin container rebuilt. Verified end-to-end over TLS
+  (admin.aetheria.../screens → 200 w/ token, 404 w/o). docs/runbook.md
+  created with the pipeline section. make test green (go test all ok incl. new
+  screens package; godot headless 4/4 PASS). Staged aetheria_screens approval
+  for sha ac9c4cb. HUMAN_TODO: VRoid models + UI art (M5.5 §2) + screenshot_bot
+  account for the 2 server-gated tour stages. Next: rollout item 3 (agency-os
+  enqueuer+worker PR).
+- 2026-08-14: M5 ACCEPTED LIVE + playable Godot client shipped. Quests: fixed
+  the magma-stall root cause (respawn-guard race — death combat event precedes
+  the hp=0 self snapshot by a tick; bot died, every auto-attack hit ErrDead) →
+  quester ALL PASS local (run14) and against production. Wire/codegen fixes:
+  GDScript floats now fixed32 (was LEN, mismatching Go), repeated-field decode
+  + `self`→`_self`, MP/XP on EntityState (13–16) + Player.SelfState. Client:
+  WorldSession transport, AetheriaTheme (Cinzel/Exo2, night-ember), full HUD
+  (frames/bars/skill bar/chat/tracker/log/dialog/death/minimap), WorldEntity
+  placeholders, procedural Emberfield scene + terrain shader, WASD/orbit-cam/
+  targeting, CharSelect→World. Tests: test_world_session + World boot in
+  test_scenes; make test green. Ops: deployed M4/M5 to production (all 4
+  healthy), bottest green live, server tuning (4x speed, 5 s respawn),
+  portal /download + make publish-client + Windows/Linux zips live, CI questrun
+  job on pushes. Commits 4804bbb..ae5c6e9.
 - 2026-08-12/13: M4 COMPLETE — economy core + acceptance live. make test +
   bottest (full-auth/presence/roamer/chaos/chat/combat/trader) all green;
   sum(gold_ledger)=415=sum(characters.gold) verified against live DB;
