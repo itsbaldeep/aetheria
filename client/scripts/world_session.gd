@@ -43,14 +43,18 @@ var self_state: Dictionary = {}
 var _seq := 0
 var _ping_ms := 0
 var _ping_sent_at := 0
+var _connect_started := 0
 
 func connect_to_server(url: String, bearer: String, character_id: int) -> void:
 	ws_url = url
 	token = bearer
 	char_id = character_id
 	ws = WebSocketPeer.new()
-	ws.supported_protocols = PackedStringArray(["binary"])
+	# Do NOT advertise a subprotocol: the gameserver's websocket.Accept has no
+	# configured Subprotocols, so any offered one fails the handshake. The Go
+	# bot sends none and connects fine.
 	ws.set_handshake_headers(PackedStringArray(["Authorization: Bearer " + token]))
+	_connect_started = Time.get_ticks_msec()
 	ws.connect_to_url(url)
 
 func _process(_delta: float) -> void:
@@ -58,6 +62,12 @@ func _process(_delta: float) -> void:
 		return
 	ws.poll()
 	match ws.get_ready_state():
+		WebSocketPeer.STATE_CONNECTING:
+			# A handshake that never completes is almost always an auth/subproto
+			# rejection; surface it instead of waiting forever.
+			if Time.get_ticks_msec() - _connect_started > 6000:
+				emit_signal("disconnected", "connection timed out", 0)
+				ws = null
 		WebSocketPeer.STATE_OPEN:
 			connected = true
 			while ws.get_available_packet_count() > 0:
@@ -71,7 +81,11 @@ func _process(_delta: float) -> void:
 				if code != 1000:
 					reason = _close_reason(code)
 				emit_signal("disconnected", reason, code)
-				ws = null
+			else:
+				# Handshake failed (auth/subprotocol). Report the close reason.
+				var code := ws.get_close_code()
+				emit_signal("disconnected", _close_reason(code), code)
+			ws = null
 
 func _close_reason(code: int) -> String:
 	if code == 1008:
