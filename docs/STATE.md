@@ -42,12 +42,18 @@ Rollout order per docs/AGENCY_INTEGRATION.md §5:
       published to https://admin.aetheria.apps.deployden.tech/screens?t=<token>
       (404 without token). `make test` green (go test + godot headless 4/4).
       screens: ac9c4cb awaiting review.
-- [ ] 3. Implement AGENCY_INTEGRATION §1.1 enqueuer + §1.2 worker handler +
-      §1.3 `.manual` expiry (agency-os repo PR), register/repair job 12, add
-      GLM-5.2 to MODEL_PRICING. Also add `aetheria_screens` + `aetheria_gate` +
-      `aetheria_human_todo` to the agency-os `approval_type` enum (migration) —
-      they don't exist yet, so this block staged the first screens review via
-      the existing `deploy` type (approval id=60) as a stopgap.
+- [x] 3. Implement AGENCY_INTEGRATION §1.1 enqueuer + §1.2 worker handler +
+      §1.3 `.manual` expiry (agency-os repo PR #74), register/repair job 12,
+      add GLM-5.2 to MODEL_PRICING. Also add `aetheria_screens` +
+      `aetheria_gate` + `aetheria_human_todo` to the agency-os `approval_type`
+      enum (migration 002 — applied live, additive). Job 12 repointed to the
+      new enqueuer + DISABLED until rollout item 6. Project aetheria (id 29)
+      ledger-authorized (repo_name + agent_allowed set). PR awaiting merge;
+      until then the old inline aetheria-loop.sh is superseded (it timed out
+      every run under run-job.sh's 300s cap). NOTE: the aetheria repo has
+      uncommitted client changes (world_session.gd, test_world_live.gd) from a
+      prior session — commit/stash them BEFORE enabling job 12, or the
+      handler's `git pull --ff-only` will fail.
 - [ ] 4. Stage first `aetheria_screens` approval from the pipeline's maiden run
       (validates §3 end-to-end) — staged this block via orch.
 - [ ] 5. Dashboard §4 changes as a dev-task PR on agency-dashboard.
@@ -197,18 +203,42 @@ animated" acceptance line but NOT the rest of M5.5; ship everything else with
 flat-color token placeholders.
 
 ## Next action
-M5.5 rollout item 3: implement the Agency OS enqueuer + worker handler
-(docs/AGENCY_INTEGRATION.md §1) as a small PR on the agency-os repo, repair job
-12, add GLM-5.2 to MODEL_PRICING. The screens-review security feedback
-(ac9c4cb) is now resolved — gallery hardened (sha regex, HTML-escaping,
-?t→cookie exchange) and run_tour.sh dead branch fixed; the human may re-review
-the live gallery (token now in cookie, not URL). After item 3, proceed to
-M5.5 §2 art direction (design tokens + theme + no-default-theme check).
+M5.5 rollout item 4: stage the first `aetheria_screens` approval via
+`orch approval request --type aetheria_screens` (now that the enum value
+exists from rollout item 3 / migration 002) to validate the §3 end-to-end
+loop. The human reviews gallery ac9c4cb (now hardened) and writes verdicts in
+FEEDBACK.md. Then item 5 (dashboard §4 PR on agency-dashboard), then item 6
+(merge PR #74 → deploy → remove `.manual` → enable job 12). Before item 6,
+commit/stash the stray uncommitted client changes in this repo. After the
+rollout items, proceed to M5.5 §2 art direction.
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-15 (rollout item 3 — agency-os loop automation PR #74): built the
+  Agency OS enqueuer + worker handler per AGENCY_INTEGRATION §1, on the
+  agency-os repo (PR #74, base main). scripts/aetheria-loop.sh = job 12's new
+  hourly enqueue-only script (exits in seconds, fits run-job.sh's 300s cap):
+  guards — .manual (<24h only; >24h ignored + traced, fixes the old permanent
+  lockout), already-queued work block, pending aetheria_gate approval, daily
+  spend cap (AETHERIA_DAILY_BUDGET_USD default $3), HUMAN:-parked STATE.md;
+  model routing cheap default → GLM-5.2 on [UI]/[shader]/[arch] tags.
+  worker.py handle_aetheria_work_block = git pull --ff-only → compose prompt
+  from docs/BLOCK_PROMPT.md + previous red-block failure context → headless
+  opencode run --format json (parses step_finish tokens) → trust-but-verify
+  (make test always; make bottest if server/ touched; make screenshots if
+  client/ touched) → red discards+resets+traces, green pushes+traces+Discord.
+  GLM-5.2 added to MODEL_PRICING ($1.40/M in, $4.40/M out). Migration
+  002_aetheria_approval_types.sql = additive ALTER TYPE ADD VALUE for
+  aetheria_screens/aetheria_gate/aetheria_human_todo (applied live; schema +
+  seed snapshots regenerated). Job 12 repointed to the new enqueuer + DISABLED
+  until rollout item 6. Project aetheria (id 29) ledger-authorized. Verified:
+  bash -n + py_compile clean; enum has 3 new values; job row correct;
+  get_project('aetheria') resolves; enqueuer guards fire correctly; INSERT
+  validated via BEGIN/ROLLBACK. NOTE: stray uncommitted client changes in this
+  repo (world_session.gd, test_world_live.gd) must be committed/stashed before
+  enabling job 12 (handler's pull --ff-only would fail on a dirty tree).
 - 2026-08-15 (screens-review fixes): resolved FEEDBACK ac9c4cb security items.
   gallery.go: (1) <sha> path segment now validated against ^[0-9a-f]{7,40}$
   before filepath.Join (defense-in-depth vs traversal/escape); (2) every
