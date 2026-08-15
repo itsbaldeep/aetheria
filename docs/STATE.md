@@ -199,13 +199,34 @@ flat-color token placeholders.
 ## Next action
 M5.5 rollout item 3: implement the Agency OS enqueuer + worker handler
 (docs/AGENCY_INTEGRATION.md §1) as a small PR on the agency-os repo, repair job
-12, add GLM-5.2 to MODEL_PRICING. Meanwhile, the human should review
-screens ac9c4cb at the gallery URL and write verdicts in FEEDBACK.md.
+12, add GLM-5.2 to MODEL_PRICING. The screens-review security feedback
+(ac9c4cb) is now resolved — gallery hardened (sha regex, HTML-escaping,
+?t→cookie exchange) and run_tour.sh dead branch fixed; the human may re-review
+the live gallery (token now in cookie, not URL). After item 3, proceed to
+M5.5 §2 art direction (design tokens + theme + no-default-theme check).
 
 ## Ports (ADR-001)
 auth=3016 game=3015 admin=3017 portal=3018 control=5003 pg=5004 redis=5005
 
 ## Last session log
+- 2026-08-15 (screens-review fixes): resolved FEEDBACK ac9c4cb security items.
+  gallery.go: (1) <sha> path segment now validated against ^[0-9a-f]{7,40}$
+  before filepath.Join (defense-in-depth vs traversal/escape); (2) every
+  echoed sha/compare/name/thumb value wrapped in html.EscapeString (reflected
+  XSS post-auth closed); (3) ?t=<token> now exchanged for an HttpOnly +
+  SameSite=Lax + Secure(over TLS) cookie via 303 redirect to the clean URL
+  (other params like compare preserved), and all rendered links drop ?t — the
+  token no longer reaches Caddy access logs / browser history / referrers;
+  authed() only accepts header or cookie (never reads ?t for serving). Added
+  gallery_test.go (13 tests: token exchange, cookie/bearer auth, no-token/
+  wrong-token 404, link-leak check, sha regex rejection, valid sha + image +
+  thumb served, file traversal rejected, XSS escaping for index sha + compare
+  value). run_tour.sh: the TOUR_RC error branch was dead under `set -e`
+  (timeout failing aborted the script before TOUR_RC=$?); wrapped the tour
+  run in `set +e`/`set -e` so the rc is captured and the error path is live.
+  make test green (go test all ok, godot headless 4/4 PASS). No server/client
+  logic touched — adminserver container rebuild needed to serve the hardened
+  gallery live (next deploy). Next: rollout item 3 (agency-os enqueuer+worker).
 - 2026-08-15 (M5.5 kickoff): human playtest verdict on first Windows build was
   "no-effort UI, didn't feel like a game" → created docs/M5_5_UI_UX_OVERHAUL.md
   (mandatory UI/UX overhaul, blocks M6 + m5-complete) and

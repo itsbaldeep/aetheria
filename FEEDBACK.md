@@ -22,9 +22,21 @@ the autonomous loop until you address them.
 - gallery.go: the <sha> path segment is never validated — filepath.Join(h.dir, sha)
   with sha=".." escapes the gallery root (ServeMux path-cleaning mitigates, but add
   defense-in-depth: reject sha not matching ^[0-9a-f]{7,40}$).
+  -> resolved: gallery.go now rejects any <sha> not matching ^[0-9a-f]{7,40}$ with
+     404 before filepath.Join (shaRe). Covered by TestShaTraversalRejected.
 - gallery.go: sha and compare query values are echoed into HTML unescaped (shaPage
   h1/h2) — reflected XSS post-auth. Wrap all echoed values in html.EscapeString.
+  -> resolved: every echoed sha/compare/name/thumb value passes html.EscapeString;
+     links no longer embed the token. Covered by TestShaEscapedInHTML +
+     TestCompareEscapedInHTML.
 - Token hygiene: ?t=<token> on every link/img puts the token in Caddy access logs
   and browser history. On first request with a valid ?t, set an HttpOnly cookie and
   303-redirect to the clean URL; accept the cookie thereafter, drop ?t from links.
+  -> resolved: gate() performs the ?t→cookie exchange (HttpOnly, SameSite=Lax,
+     Secure over TLS) + 303 to the clean URL preserving other params; authed()
+     now only accepts header/cookie (never reads ?t for serving); all rendered
+     links drop ?t. Covered by TestTokenQueryExchangesCookie + TestTokenNotInLinks
+     + TestCookieAuthServes.
 - Cosmetic, no rush: run_tour.sh TOUR_RC error branch is dead code under set -e.
+  -> resolved: tour run now wraps `set +e` around timeout so TOUR_RC is captured
+     and the error branch is live.

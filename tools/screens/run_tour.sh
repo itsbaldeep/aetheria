@@ -60,13 +60,16 @@ fi
 export DISPLAY=":$DISPLAY_NUM"
 
 # 4. run the tour (NOT headless — we need rendering; the SceneTree script
-#    drives the root window and captures its viewport).
+#    drives the root window and captures its viewport). Temporarily disable
+#    set -e so a non-zero tour exit is captured rather than aborting here.
 echo "[screens] running Godot screenshot tour → $OUT"
 cd "$REPO/client"
+set +e
 timeout 240 "$GODOT" --path . --rendering-method gl_compatibility \
 	--resolution 1920x1080 --script res://tools/ScreenshotTour.gd \
 	-- --screenshot-tour --out "$OUT" --sha "$SHA" "$@"
 TOUR_RC=$?
+set -e
 echo "[screens] tour exit=$TOUR_RC"
 
 if [ "$TOUR_RC" -ne 0 ]; then
